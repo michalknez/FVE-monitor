@@ -46,3 +46,6 @@ ziHCWPXX
 zic6GtLn
 zic9BSmu
 ziocU7n3
+
+# local Avast HTTPS-scanning root CA (machine-specific, for NODE_EXTRA_CA_CERTS)
+avast-root-ca.pem
