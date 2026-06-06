@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import type { InverterReading } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/server";
+import { DailyCharts } from "./daily-charts";
 
 export const metadata: Metadata = {
   title: "Detail elektrárny | FVE Monitor",
@@ -24,6 +26,27 @@ export default async function PlantDetailPage({
   if (error || !plant) notFound();
 
   const today = new Date().toISOString().slice(0, 10);
+
+  const inverterIds = inverters?.map((i) => i.id) ?? [];
+  let readings: InverterReading[] = [];
+  if (inverterIds.length > 0) {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const { data } = await supabase
+      .from("inverter_readings")
+      .select("inverter_id, recorded_at, soc, battemper, vdc1, vdc2, vdc3, vdc4")
+      .in("inverter_id", inverterIds)
+      .gte("recorded_at", startOfDay.toISOString())
+      .order("recorded_at")
+      .returns<InverterReading[]>();
+    readings = data ?? [];
+  }
+
+  const inverterChartData = (inverters ?? []).map((inv) => ({
+    id: inv.id,
+    label: inv.label,
+    readings: readings.filter((r) => r.inverter_id === inv.id),
+  }));
   const subscribed = plant.subscription_until ? plant.subscription_until >= today : false;
 
   return (
@@ -135,6 +158,16 @@ export default async function PlantDetailPage({
             </div>
           </dl>
         </section>
+
+        {/* Denní grafy */}
+        {inverterIds.length > 0 && (
+          <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+            <h2 className="mb-6 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              Dnešní grafy
+            </h2>
+            <DailyCharts inverters={inverterChartData} />
+          </section>
+        )}
 
         {/* Invertory */}
         <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">

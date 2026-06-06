@@ -127,3 +127,14 @@ export type Database = {
 export type ApiConfig = Database["public"]["Tables"]["api_configs"]["Row"];
 export type Plant = Database["public"]["Tables"]["plants"]["Row"];
 export type Inverter = Database["public"]["Tables"]["inverters"]["Row"];
+
+export type InverterReading = {
+  inverter_id: string;
+  recorded_at: string;
+  soc: number | null;
+  battemper: number | null;
+  vdc1: number | null;
+  vdc2: number | null;
+  vdc3: number | null;
+  vdc4: number | null;
+};
