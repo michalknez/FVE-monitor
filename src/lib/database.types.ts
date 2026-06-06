@@ -15,6 +15,12 @@ export type Database = {
           is_active: boolean;
           created_at: string;
           updated_at: string;
+          username: string | null;
+          password: string | null;
+          sems_token: string | null;
+          sems_uid: string | null;
+          sems_api_url: string | null;
+          sems_token_expires_at: string | null;
         };
         Insert: {
           id?: string;
@@ -25,6 +31,12 @@ export type Database = {
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
+          username?: string | null;
+          password?: string | null;
+          sems_token?: string | null;
+          sems_uid?: string | null;
+          sems_api_url?: string | null;
+          sems_token_expires_at?: string | null;
         };
         Update: {
           id?: string;
@@ -35,6 +47,12 @@ export type Database = {
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
+          username?: string | null;
+          password?: string | null;
+          sems_token?: string | null;
+          sems_uid?: string | null;
+          sems_api_url?: string | null;
+          sems_token_expires_at?: string | null;
         };
         Relationships: [];
       };
@@ -95,6 +113,7 @@ export type Database = {
           label: string | null;
           is_active: boolean;
           created_at: string;
+          external_id: string | null;
         };
         Insert: {
           id?: string;
@@ -104,6 +123,7 @@ export type Database = {
           label?: string | null;
           is_active?: boolean;
           created_at?: string;
+          external_id?: string | null;
         };
         Update: {
           id?: string;
@@ -113,6 +133,7 @@ export type Database = {
           label?: string | null;
           is_active?: boolean;
           created_at?: string;
+          external_id?: string | null;
         };
         Relationships: [];
       };

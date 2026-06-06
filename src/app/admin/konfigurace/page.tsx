@@ -12,12 +12,10 @@ export const metadata: Metadata = {
 export default async function KonfiguracePage() {
   const supabase = await createClient();
 
-  // Předvyplnění formuláře existující konfigurací pro Solax (jeden záznam na značku).
-  const { data: config } = await supabase
-    .from("api_configs")
-    .select("*")
-    .eq("brand", "Solax")
-    .maybeSingle<ApiConfig>();
+  const [{ data: solaxConfig }, { data: goodweConfig }] = await Promise.all([
+    supabase.from("api_configs").select("*").eq("brand", "Solax").maybeSingle<ApiConfig>(),
+    supabase.from("api_configs").select("*").eq("brand", "GoodWe").maybeSingle<ApiConfig>(),
+  ]);
 
   return (
     <div className="min-h-full bg-zinc-50 px-4 py-12 dark:bg-black">
@@ -31,12 +29,12 @@ export default async function KonfiguracePage() {
           </h1>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
             Nastavte přístup k cloudovému API výrobce a ověřte připojení proti
-            konkrétnímu střídači.
+            konkrétní elektrárně.
           </p>
         </header>
 
         <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <ConfigForm config={config ?? null} />
+          <ConfigForm solaxConfig={solaxConfig ?? null} goodweConfig={goodweConfig ?? null} />
         </section>
       </main>
     </div>

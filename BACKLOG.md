@@ -249,6 +249,18 @@ abych viděl průběh výroby a dokázal identifikovat anomálie.
 - Data po 15minutových intervalech
 - Více proměnných v grafu (přidání dalších v budoucnu)
 
+### US-033: Graf přetoku do sítě
+Jako admin chci vidět denní průběh přetoku do sítě (feedinpower) v grafu,
+abych věděl kdy a kolik energie elektrárna exportuje.
+
+**Chování:**
+- LineChart, stejné časové rozsahy jako ostatní grafy (Dnes / Včera / vlastní rozsah)
+- Kladné hodnoty = export do sítě (W), záporné = odběr ze sítě
+- Referenční linie na 0 W
+- Pokud je nastaveno `export_limit_w` → zobrazit jako horizontální přerušovanou linii (limit)
+
+---
+
 ### US-032: Historie — tabulka
 Jako admin chci pod grafem vidět tabulku s hodnotami po 15 minutách,
 abych mohl přesně přečíst konkrétní hodnoty v daný čas.
@@ -374,6 +386,19 @@ Klíčové endpointy:
 ---
 
 ## 7b. Počasí podle GPS elektrárny
+
+### US-038: Dynamická maxima gauge ukazatelů dle historických dat
+
+Aktuálně jsou maxima gauges fixní (rated_power nebo reserved_power_w).
+Upravit tak, aby maximum každého gauge odpovídalo historickému maximu dané veličiny pro daný invertor.
+
+**Logika:**
+- Při načtení stránky dotázat DB: `SELECT MAX(acpower), MAX(feedinpower), MAX(pv_total), MAX(soc), MAX(ABS(batpower)) FROM inverter_readings WHERE inverter_id = ?`
+- Tato maxima předat gauge komponentě jako `max` prop
+- Pokud historické maximum = null (žádná data) → fallback na rated_power / reserved_power_w / 100 (pro SOC)
+- Výhoda: gauge vizuálně ukazuje aktuální hodnotu v kontextu nejlepšího dosaženého výkonu
+
+---
 
 ### US-037: Import počasí a zobrazení na detailu elektrárny
 
