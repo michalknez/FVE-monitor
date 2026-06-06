@@ -58,6 +58,9 @@ export function DailyCharts({ inverters }: Props) {
   return (
     <div className="space-y-8">
       {inverters.map((inv) => {
+        const mul = (a: number | null, b: number | null) =>
+          a != null && b != null ? Math.round(a * b) : null;
+
         const points = inv.readings.map((r) => ({
           time: toHHMM(r.recorded_at),
           soc: r.soc,
@@ -66,6 +69,17 @@ export function DailyCharts({ inverters }: Props) {
           vdc2: r.vdc2,
           vdc3: r.vdc3,
           vdc4: r.vdc4,
+          idc1: r.idc1,
+          idc2: r.idc2,
+          idc3: r.idc3,
+          idc4: r.idc4,
+          pdc1: mul(r.vdc1, r.idc1),
+          pdc2: mul(r.vdc2, r.idc2),
+          pdc3: mul(r.vdc3, r.idc3),
+          pdc4: mul(r.vdc4, r.idc4),
+          vac1: r.vac1,
+          vac2: r.vac2,
+          vac3: r.vac3,
         }));
 
         return (
@@ -148,6 +162,74 @@ export function DailyCharts({ inverters }: Props) {
                       <Line type="monotone" dataKey="vdc2" stroke="#a855f7" dot={false} strokeWidth={2} name="VDC2" />
                       <Line type="monotone" dataKey="vdc3" stroke="#ec4899" dot={false} strokeWidth={2} name="VDC3" />
                       <Line type="monotone" dataKey="vdc4" stroke="#14b8a6" dot={false} strokeWidth={2} name="VDC4" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChart />
+                )}
+              </ChartCard>
+
+              <ChartCard title="DC proud MPPT" unit="A">
+                {hasData(inv.readings, "idc1", "idc2", "idc3", "idc4") ? (
+                  <ResponsiveContainer width="100%" height={192}>
+                    <LineChart data={points} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
+                      <XAxis dataKey="time" tick={{ fontSize: 11 }} />
+                      <YAxis unit="A" tick={{ fontSize: 11 }} width={44} />
+                      <Tooltip
+                        formatter={(v, name) => [`${v} A`, String(name)]}
+                        labelFormatter={(l) => `čas: ${l}`}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Line type="monotone" dataKey="idc1" stroke="#3b82f6" dot={false} strokeWidth={2} name="IDC1" />
+                      <Line type="monotone" dataKey="idc2" stroke="#a855f7" dot={false} strokeWidth={2} name="IDC2" />
+                      <Line type="monotone" dataKey="idc3" stroke="#ec4899" dot={false} strokeWidth={2} name="IDC3" />
+                      <Line type="monotone" dataKey="idc4" stroke="#14b8a6" dot={false} strokeWidth={2} name="IDC4" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChart />
+                )}
+              </ChartCard>
+
+              <ChartCard title="DC výkon MPPT" unit="W">
+                {points.some((p) => p.pdc1 != null || p.pdc2 != null || p.pdc3 != null || p.pdc4 != null) ? (
+                  <ResponsiveContainer width="100%" height={192}>
+                    <LineChart data={points} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
+                      <XAxis dataKey="time" tick={{ fontSize: 11 }} />
+                      <YAxis unit="W" tick={{ fontSize: 11 }} width={52} />
+                      <Tooltip
+                        formatter={(v, name) => [`${v} W`, String(name)]}
+                        labelFormatter={(l) => `čas: ${l}`}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Line type="monotone" dataKey="pdc1" stroke="#3b82f6" dot={false} strokeWidth={2} name="PDC1" />
+                      <Line type="monotone" dataKey="pdc2" stroke="#a855f7" dot={false} strokeWidth={2} name="PDC2" />
+                      <Line type="monotone" dataKey="pdc3" stroke="#ec4899" dot={false} strokeWidth={2} name="PDC3" />
+                      <Line type="monotone" dataKey="pdc4" stroke="#14b8a6" dot={false} strokeWidth={2} name="PDC4" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChart />
+                )}
+              </ChartCard>
+
+              <ChartCard title="Napětí AC fáze" unit="V">
+                {hasData(inv.readings, "vac1", "vac2", "vac3") ? (
+                  <ResponsiveContainer width="100%" height={192}>
+                    <LineChart data={points} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
+                      <XAxis dataKey="time" tick={{ fontSize: 11 }} />
+                      <YAxis unit="V" tick={{ fontSize: 11 }} width={48} />
+                      <Tooltip
+                        formatter={(v, name) => [`${v} V`, String(name)]}
+                        labelFormatter={(l) => `čas: ${l}`}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Line type="monotone" dataKey="vac1" stroke="#f59e0b" dot={false} strokeWidth={2} name="L1" />
+                      <Line type="monotone" dataKey="vac2" stroke="#10b981" dot={false} strokeWidth={2} name="L2" />
+                      <Line type="monotone" dataKey="vac3" stroke="#6366f1" dot={false} strokeWidth={2} name="L3" />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (

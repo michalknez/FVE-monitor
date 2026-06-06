@@ -137,4 +137,11 @@ export type InverterReading = {
   vdc2: number | null;
   vdc3: number | null;
   vdc4: number | null;
+  idc1: number | null;
+  idc2: number | null;
+  idc3: number | null;
+  idc4: number | null;
+  vac1: number | null;
+  vac2: number | null;
+  vac3: number | null;
 };
