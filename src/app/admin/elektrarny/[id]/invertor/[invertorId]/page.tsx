@@ -158,6 +158,29 @@ export default async function InverterDetailPage({
   const last = lastArr?.[0] ?? null;
 
   // ---------------------------------------------------------------------------
+  // Latest reading per inverter — needed for plant-wide average
+  // ---------------------------------------------------------------------------
+
+  const latestPerInv = new Map<string, CrossReading>();
+  for (const r of recentAll ?? []) {
+    if (!latestPerInv.has(r.inverter_id)) latestPerInv.set(r.inverter_id, r);
+  }
+
+  // Plant-wide average tracker power (all active trackers across all inverters)
+  let plantTotalPower = 0;
+  let plantTotalCount = 0;
+  for (const r of latestPerInv.values()) {
+    const powers = [
+      calcPower(r.vdc1, r.idc1),
+      calcPower(r.vdc2, r.idc2),
+      calcPower(r.vdc3, r.idc3),
+      calcPower(r.vdc4, r.idc4),
+    ].filter((p): p is number => p !== null);
+    plantTotalPower += powers.reduce((a, b) => a + b, 0);
+    plantTotalCount += powers.length;
+  }
+
+  // ---------------------------------------------------------------------------
   // MPPT tracker analysis (current measurement)
   // ---------------------------------------------------------------------------
 
@@ -179,12 +202,15 @@ export default async function InverterDetailPage({
       ? activeTrackers.reduce((s, t) => s + t.power, 0) / activeTrackers.length
       : 0;
 
+  const plantAvgPower = plantTotalCount > 0 ? plantTotalPower / plantTotalCount : avgPower;
+
   const trackers: TrackerData[] = activeTrackers.map((t) => ({
     n: t.n,
     power: t.power,
     vdc: t.vdc ?? 0,
     idc: t.idc ?? 0,
     pctOfAvg: avgPower > 0 ? Math.round((t.power / avgPower) * 100) : 100,
+    pctOfPlantAvg: plantAvgPower > 0 ? Math.round((t.power / plantAvgPower) * 100) : 100,
   }));
 
   const anomalies = trackers.filter((t) => t.pctOfAvg < 60);
@@ -212,7 +238,7 @@ export default async function InverterDetailPage({
     const day = dailyDevs.get(date)!;
     powers.forEach((p, i) => {
       if (p !== null && p > 0)
-        day[i + 1].push(Math.round(((p / mean) - 1) * 100)); // deviation from average
+        day[i + 1].push(Math.round(((p / mean) - 1) * 100));
     });
   }
 
@@ -230,34 +256,30 @@ export default async function InverterDetailPage({
     }));
 
   // ---------------------------------------------------------------------------
-  // Cross-inverter comparison
+  // Cross-inverter comparison bar chart data
   // ---------------------------------------------------------------------------
 
-  const latestPerInv = new Map<string, CrossReading>();
-  for (const r of recentAll ?? []) {
-    if (!latestPerInv.has(r.inverter_id)) latestPerInv.set(r.inverter_id, r);
-  }
+  const plantHasMultipleInverters = (allInverters?.length ?? 0) > 1;
 
-  const inverterComparison: InverterBar[] =
-    (allInverters?.length ?? 0) > 1
-      ? (allInverters ?? []).map((inv) => {
-          const r = latestPerInv.get(inv.id);
-          const powers = r
-            ? ([
-                calcPower(r.vdc1, r.idc1),
-                calcPower(r.vdc2, r.idc2),
-                calcPower(r.vdc3, r.idc3),
-                calcPower(r.vdc4, r.idc4),
-              ].filter((p): p is number => p !== null))
-            : [];
-          return {
-            id: inv.id,
-            label: inv.label ?? inv.wifi_sn,
-            power: powers.length > 0 ? powers.reduce((a, b) => a + b, 0) : null,
-            isCurrent: inv.id === invertorId,
-          };
-        })
-      : [];
+  const inverterComparison: InverterBar[] = plantHasMultipleInverters
+    ? (allInverters ?? []).map((inv) => {
+        const r = latestPerInv.get(inv.id);
+        const powers = r
+          ? ([
+              calcPower(r.vdc1, r.idc1),
+              calcPower(r.vdc2, r.idc2),
+              calcPower(r.vdc3, r.idc3),
+              calcPower(r.vdc4, r.idc4),
+            ].filter((p): p is number => p !== null))
+          : [];
+        return {
+          id: inv.id,
+          label: inv.label ?? inv.wifi_sn,
+          power: powers.length > 0 ? powers.reduce((a, b) => a + b, 0) : null,
+          isCurrent: inv.id === invertorId,
+        };
+      })
+    : [];
 
   // ---------------------------------------------------------------------------
   // Render
@@ -356,6 +378,7 @@ export default async function InverterDetailPage({
             avgPower={Math.round(avgPower)}
             trendData={trendData}
             inverterComparison={inverterComparison}
+            plantHasMultipleInverters={plantHasMultipleInverters}
           />
         )}
       </main>

@@ -20,8 +20,10 @@ export type TrackerData = {
   power: number;
   vdc: number;
   idc: number;
-  /** Percentage of tracker-group average: 100 = at average, 83 = 17 % below */
+  /** % of this inverter's tracker average: 100 = at average, 83 = 17 % below */
   pctOfAvg: number;
+  /** % of plant-wide tracker average */
+  pctOfPlantAvg: number;
 };
 
 export type TrendPoint = {
@@ -45,6 +47,7 @@ type Props = {
   avgPower: number;
   trendData: TrendPoint[];
   inverterComparison: InverterBar[];
+  plantHasMultipleInverters: boolean;
 };
 
 const TRACKER_COLORS = ["#3b82f6", "#a855f7", "#ec4899", "#14b8a6"] as const;
@@ -71,7 +74,13 @@ function DeviationBadge({ pct }: { pct: number }) {
   );
 }
 
-export function MpptCharts({ trackers, avgPower, trendData, inverterComparison }: Props) {
+export function MpptCharts({
+  trackers,
+  avgPower,
+  trendData,
+  inverterComparison,
+  plantHasMultipleInverters,
+}: Props) {
   const barData = trackers.map((t) => ({
     name: `MPPT ${t.n}`,
     power: t.power,
@@ -80,53 +89,75 @@ export function MpptCharts({ trackers, avgPower, trendData, inverterComparison }
 
   return (
     <>
-      {/* MPPT tracker comparison */}
+      {/* 1. Tracker table + bar chart */}
       <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <h2 className="mb-6 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+        <h2 className="mb-5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
           Srovnání MPPT trackerů
         </h2>
 
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={barData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
-            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-            <YAxis unit=" W" tick={{ fontSize: 11 }} width={60} />
-            <Tooltip
-              formatter={(v) => [`${v} W`, "Výkon"]}
-              labelFormatter={(l) => String(l)}
-            />
-            <Bar dataKey="power" name="Výkon" radius={[4, 4, 0, 0]}>
-              {barData.map((entry, i) => (
-                <Cell key={i} fill={barFill(entry.pctOfAvg)} />
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-zinc-200 text-xs uppercase tracking-wider text-zinc-400 dark:border-zinc-800">
+              <tr>
+                <th className="pb-2.5 pr-4 font-medium">Tracker</th>
+                <th className="pb-2.5 pr-4 font-medium">Výkon</th>
+                <th className="pb-2.5 pr-4 font-medium">Napětí</th>
+                <th className="pb-2.5 pr-4 font-medium">Proud</th>
+                <th className="pb-2.5 pr-4 font-medium">vs střídač</th>
+                {plantHasMultipleInverters && (
+                  <th className="pb-2.5 font-medium">vs elektrárna</th>
+                )}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              {trackers.map((t) => (
+                <tr key={t.n}>
+                  <td className="py-3 pr-4 font-medium text-zinc-700 dark:text-zinc-300">
+                    MPPT {t.n}
+                  </td>
+                  <td className="py-3 pr-4 tabular-nums text-zinc-900 dark:text-zinc-50">
+                    {t.power} W
+                  </td>
+                  <td className="py-3 pr-4 tabular-nums text-zinc-500">{t.vdc} V</td>
+                  <td className="py-3 pr-4 tabular-nums text-zinc-500">{t.idc} A</td>
+                  <td className="py-3 pr-4">
+                    <DeviationBadge pct={t.pctOfAvg} />
+                  </td>
+                  {plantHasMultipleInverters && (
+                    <td className="py-3">
+                      <DeviationBadge pct={t.pctOfPlantAvg} />
+                    </td>
+                  )}
+                </tr>
               ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-xs text-zinc-400">Průměr trackerů tohoto střídače: {avgPower} W</p>
 
-        <div className="mt-6 space-y-2">
-          {trackers.map((t) => (
-            <div
-              key={t.n}
-              className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-zinc-100 px-4 py-3 text-sm dark:border-zinc-800"
-            >
-              <span className="w-16 font-medium text-zinc-700 dark:text-zinc-300">
-                MPPT {t.n}
-              </span>
-              <span className="w-20 tabular-nums text-zinc-900 dark:text-zinc-50">
-                {t.power} W
-              </span>
-              <span className="w-20 tabular-nums text-zinc-500">{t.vdc} V</span>
-              <span className="w-16 tabular-nums text-zinc-500">{t.idc} A</span>
-              <span className="ml-auto">
-                <DeviationBadge pct={t.pctOfAvg} />
-              </span>
-            </div>
-          ))}
-          <p className="pt-1 text-xs text-zinc-400">Průměr trackerů: {avgPower} W</p>
+        {/* Bar chart */}
+        <div className="mt-6">
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={barData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+              <YAxis unit=" W" tick={{ fontSize: 11 }} width={60} />
+              <Tooltip
+                formatter={(v) => [`${v} W`, "Výkon"]}
+                labelFormatter={(l) => String(l)}
+              />
+              <Bar dataKey="power" name="Výkon" radius={[4, 4, 0, 0]}>
+                {barData.map((entry, i) => (
+                  <Cell key={i} fill={barFill(entry.pctOfAvg)} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </section>
 
-      {/* 7-day deviation trend */}
+      {/* 2. 7-day deviation trend */}
       {trendData.length > 0 && (
         <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
           <h2 className="mb-6 text-xs font-semibold uppercase tracking-wider text-zinc-400">
@@ -136,60 +167,23 @@ export function MpptCharts({ trackers, avgPower, trendData, inverterComparison }
             <LineChart data={trendData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
               <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-              <YAxis
-                unit=" %"
-                tick={{ fontSize: 11 }}
-                width={48}
-                domain={["auto", "auto"]}
-              />
+              <YAxis unit=" %" tick={{ fontSize: 11 }} width={48} domain={["auto", "auto"]} />
               <Tooltip
                 formatter={(v, name) => [`${v} %`, String(name)]}
                 labelFormatter={(l) => String(l)}
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <ReferenceLine y={0} stroke="#71717a" strokeDasharray="4 2" />
-              <Line
-                type="monotone"
-                dataKey="t1"
-                stroke={TRACKER_COLORS[0]}
-                dot={false}
-                strokeWidth={2}
-                name="MPPT 1"
-                connectNulls
-              />
-              <Line
-                type="monotone"
-                dataKey="t2"
-                stroke={TRACKER_COLORS[1]}
-                dot={false}
-                strokeWidth={2}
-                name="MPPT 2"
-                connectNulls
-              />
-              <Line
-                type="monotone"
-                dataKey="t3"
-                stroke={TRACKER_COLORS[2]}
-                dot={false}
-                strokeWidth={2}
-                name="MPPT 3"
-                connectNulls
-              />
-              <Line
-                type="monotone"
-                dataKey="t4"
-                stroke={TRACKER_COLORS[3]}
-                dot={false}
-                strokeWidth={2}
-                name="MPPT 4"
-                connectNulls
-              />
+              <Line type="monotone" dataKey="t1" stroke={TRACKER_COLORS[0]} dot={false} strokeWidth={2} name="MPPT 1" connectNulls />
+              <Line type="monotone" dataKey="t2" stroke={TRACKER_COLORS[1]} dot={false} strokeWidth={2} name="MPPT 2" connectNulls />
+              <Line type="monotone" dataKey="t3" stroke={TRACKER_COLORS[2]} dot={false} strokeWidth={2} name="MPPT 3" connectNulls />
+              <Line type="monotone" dataKey="t4" stroke={TRACKER_COLORS[3]} dot={false} strokeWidth={2} name="MPPT 4" connectNulls />
             </LineChart>
           </ResponsiveContainer>
         </section>
       )}
 
-      {/* Cross-inverter comparison */}
+      {/* 3. Cross-inverter comparison */}
       {inverterComparison.length > 1 && (
         <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
           <h2 className="mb-6 text-xs font-semibold uppercase tracking-wider text-zinc-400">
