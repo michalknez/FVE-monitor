@@ -146,4 +146,5 @@ export type InverterReading = {
   vac3: number | null;
   acpower: number | null;
   yieldtoday: number | null;
+  inverter_status: string | null;
 };

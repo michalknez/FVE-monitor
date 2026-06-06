@@ -185,6 +185,7 @@ export default async function PlantDetailPage({
                     <th className="px-4 py-2.5 font-medium">WiFi SN</th>
                     <th className="px-4 py-2.5 font-medium">Značka</th>
                     <th className="px-4 py-2.5 font-medium">Stav</th>
+                    <th className="px-4 py-2.5 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -209,6 +210,14 @@ export default async function PlantDetailPage({
                         >
                           {inv.is_active ? "Aktivní" : "Neaktivní"}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Link
+                          href={`/admin/elektrarny/${id}/invertor/${inv.id}`}
+                          className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                        >
+                          Detail →
+                        </Link>
                       </td>
                     </tr>
                   ))}
