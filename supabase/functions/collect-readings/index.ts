@@ -4,14 +4,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const THROTTLE_MS = 6500;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-Deno.serve(async (req) => {
-  // Volání musí přijít z pg_cron nebo s platným service_role tokenem
-  const authHeader = req.headers.get("Authorization") ?? "";
+Deno.serve(async (_req) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const token = authHeader.replace(/^Bearer\s+/, "");
-  if (token !== serviceKey) {
-    return new Response("Unauthorized", { status: 401 });
-  }
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
