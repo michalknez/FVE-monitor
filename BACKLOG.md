@@ -86,8 +86,11 @@ abych ji mohl monitorovat a evidovat správné údaje.
 | wifi_sn | text | Sériové číslo WiFi modulu |
 | brand | text | Značka (solax / goodwe) |
 | label | text | Pojmenování invertoru (např. "Střecha jih") |
+| mppt_count | integer | Počet MPPT trackerů (1–4) — určuje kolik DC napětí zobrazovat |
 | is_active | boolean | |
 | created_at | timestamptz | |
+
+**⚠️ TODO:** Přidat pole `mppt_count` do tabulky `inverters` v Supabase + do formuláře přidání/editace invertoru. Grafy DC napětí zobrazovat pouze pro aktivní trackery (vdc1 až vdc{mppt_count}).
 
 ### US-012: Detail elektrárny
 Jako admin chci na detailu elektrárny vidět živá aktuální data ze všech jejích invertorů,
@@ -235,7 +238,66 @@ Evidujeme pouze datum, do kdy je předplatné aktivní.
 
 ---
 
-## 8. Reporty (Reports)
+## 8. Měsíční souhrny výroby
+
+### US-050: Denní a měsíční výroba
+Jako admin chci vidět denní a měsíční přehled výroby každé elektrárny,
+abych měl přehled o celkové produkci za období.
+
+**Logika výpočtu:**
+- Denní výroba = max(yieldtoday) za daný den (Solax API vrací kumulativní denní hodnotu — maximum dne = celková denní výroba)
+- Měsíční výroba = součet denních výrob za měsíc
+- Výpočet per invertor, pak součet za celou elektrárnu
+
+**Návrh implementace:**
+- Supabase view nebo materialized view `daily_yield` (inverter_id, date, yield_kwh)
+- Alternativa: výpočet v Next.js ze surových dat
+- Zobrazení: tabulka měsíců + sloupcový graf
+
+**Upřesnění:**
+- Zobrazovat per invertor + součet za elektrárnu
+- Rozsah: vše od začátku monitoringu
+
+---
+
+## 9. Detekce anomálií MPPT
+
+### US-060: Detekce výpadků a sníženého výkonu MPPT trackerů
+Jako admin chci být upozorněn na anomálie v datových řadách MPPT trackerů,
+abych mohl včas identifikovat problém (stínění, porucha panelu, odpojený string).
+
+**Typy anomálií k detekci:**
+1. **Výpadek trackeru** — vdc nebo idc = 0 zatímco ostatní trackery téhož invertoru mají nenulové hodnoty a je den (acpower > 0)
+2. **Abnormálně snížený výkon** — výkon jednoho MPPT trackeru je výrazně nižší než průměr ostatních trackerů téhož invertoru ve stejný čas (např. < 50 % průměru)
+3. **Asymetrie trackerů** — dlouhodobá odchylka jednoho trackeru od ostatních (přes více dní)
+
+**Návrh logiky:**
+- Porovnávej trackery navzájem v rámci jednoho invertoru (relativní anomálie)
+- Vyhodnocuj pouze v denních hodinách (acpower > 0 nebo soc stoupá)
+- Výsledek: seznam anomálií s časem, invertorem, číslem trackeru a typem problému
+
+**Upřesnění — kde zobrazovat:**
+1. **Stránka /admin/data-monitoring** — přehled všech aktivních upozornění napříč elektrárny, seřazeno dle závažnosti/času
+2. **Detail invertoru /admin/elektrarny/[id]/invertor/[id]** — relativní srovnání výkonu trackerů:
+   - Tracker vs. ostatní trackery téhož invertoru
+   - Tracker vs. průměr všech invertorů na elektrárně
+   - Vizualizace odchylek (graf nebo barevné indikátory)
+
+**Výchozí hodnoty (doporučené, upravitelné per střídač):**
+- Prahová odchylka výkonu: **60 %** — tracker flagován pokud vyrábí méně než 60 % průměru ostatních trackerů téhož střídače. Tato hodnota eliminuje krátkodobé zastínění (oblak) ale zachytí dlouhodobý problém (nečistoty, závada panelu, odpojený string).
+- Minimální délka anomálie: **3 měření po sobě (45 min)** — zabraňuje falešným alarmům z průchodu mraku nebo restartu střídače.
+
+**Rozšíření tabulky `inverters` o konfiguraci anomálií:**
+| Atribut | Typ | Výchozí | Popis |
+|---------|-----|---------|-------|
+| anomaly_threshold_pct | integer | 60 | Práh výkonu trackeru vůči průměru (%) |
+| anomaly_min_readings | integer | 3 | Počet po sobě jdoucích měření pro alarm |
+
+**Stránka nastavení anomálií:** součást formuláře editace střídače na /admin/elektrarny/[id]/upravit
+
+---
+
+## 10. Reporty (Reports)
 
 ⏸ Odloženo — doladíme až budou k dispozici reálná data. Obsah a formát reportů navrhneme společně na základě dat z elektráren.
 
