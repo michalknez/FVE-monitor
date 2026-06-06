@@ -118,14 +118,16 @@ export function ConfigForm({
           <div>
             <label htmlFor="password" className={labelClass}>
               Heslo{" "}
-              {config?.username && (
-                <span className="text-zinc-400">(ponech prázdné pro zachování)</span>
+              {config?.password && (
+                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                  uloženo
+                </span>
               )}
             </label>
             <input
               id="password" name="password" type="password"
               autoComplete="new-password"
-              placeholder="heslo k SEMS portálu"
+              placeholder={config?.password ? "ponech prázdné pro zachování uloženého" : "heslo k SEMS portálu"}
               className={inputClass}
             />
           </div>

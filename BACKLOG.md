@@ -60,6 +60,31 @@ Autentizace probíhá ve dvou krocích:
 - Token expiruje → Edge Function musí detekovat expiraci a volat CrossLogin znovu
 - Limit: 3600 volání/hod (výrazně více než Solax 10/min)
 - Oficiální OpenAPI vyžaduje licenční smlouvu → používáme SEMS Portal API
+- **1 API volání per elektrárna** (ne per invertor jako u Solaxu) → vrátí všechny invertory najednou
+
+**Mapování GoodWe API polí → naše DB (`inverter[].d` objekt):**
+| GoodWe pole | DB pole | Poznámka |
+|-------------|---------|----------|
+| `vpv1-4` | `vdc1-4` | DC napětí MPPT |
+| `ipv1-4` | `idc1-4` | DC proud MPPT |
+| `vac1-3` | `vac1-3` | AC napětí fáze |
+| `iac1-3` | `iac1-3` | AC proud fáze |
+| `pac` | `acpower` | AC výkon (W) |
+| `soc` | `soc` | Nabití baterie (%) |
+| `tempperature` | `temperature` | Teplota (překlep v GoodWe API!) |
+| `eDay` | `yieldtoday` | Dnešní výroba (kWh) |
+| `eTotal` | `yieldtotal` | Celková výroba (kWh) |
+| `pmeter * -1` | `feedinpower` | GoodWe: záporné = export, OPAK Solaxu! |
+| `vbattery1` | `batVoltage` | Napětí baterie (V) |
+| `ibattery1` | `batCurrent` | Proud baterie (A) |
+| `sn` | `wifi_sn` | Identifikátor invertoru |
+
+**Identifikace v systému:**
+- `inverters.external_id` = `powerStationId` (UUID z SEMS portálu) — per elektrárna
+- `inverters.wifi_sn` = `sn` (sériové číslo fyzického invertoru) — per invertor
+
+**Bonus — powerflow data (za celou elektrárnu):**
+`data.powerflow`: pv (FV výkon), load (spotřeba domu), grid (síť), soc (baterie)
 
 ### US-002: Konfigurace GoodWe API na stránce /admin/konfigurace
 
