@@ -88,6 +88,11 @@ Deno.serve(async (_req) => {
         acpower: r.acpower ?? null,
         yieldtoday: r.yieldtoday ?? null,
         inverter_status: r.inverterStatus != null ? String(r.inverterStatus) : null,
+        feedinpower: r.feedinpower ?? null,
+        powerdc1: r.powerdc1 ?? null, powerdc2: r.powerdc2 ?? null,
+        powerdc3: r.powerdc3 ?? null, powerdc4: r.powerdc4 ?? null,
+        batpower: r.batPower ?? null,
+        ratedpower: r.ratedPower ?? null,
       });
 
       if (insertErr) { console.error(insertErr.message); results.failed++; }

@@ -48,7 +48,7 @@ export type Database = {
           address: string | null;
           gps_lat: number | null;
           gps_lng: number | null;
-          reserved_power_kw: number | null;
+          reserved_power_w: number | null;
           subscription_until: string | null;
           is_active: boolean;
           created_at: string;
@@ -63,7 +63,7 @@ export type Database = {
           address?: string | null;
           gps_lat?: number | null;
           gps_lng?: number | null;
-          reserved_power_kw?: number | null;
+          reserved_power_w?: number | null;
           subscription_until?: string | null;
           is_active?: boolean;
           created_at?: string;
@@ -78,7 +78,7 @@ export type Database = {
           address?: string | null;
           gps_lat?: number | null;
           gps_lng?: number | null;
-          reserved_power_kw?: number | null;
+          reserved_power_w?: number | null;
           subscription_until?: string | null;
           is_active?: boolean;
           created_at?: string;
@@ -147,4 +147,11 @@ export type InverterReading = {
   acpower: number | null;
   yieldtoday: number | null;
   inverter_status: string | null;
+  feedinpower: number | null;
+  powerdc1: number | null;
+  powerdc2: number | null;
+  powerdc3: number | null;
+  powerdc4: number | null;
+  batpower: number | null;
+  ratedpower: number | null;
 };

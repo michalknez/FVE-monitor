@@ -5,10 +5,33 @@ import { notFound } from "next/navigation";
 import type { InverterReading } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/server";
 import { DailyCharts } from "./daily-charts";
+import { MpptStatus } from "./mppt-status";
+import type { InverterCard, TrackerRow } from "./mppt-status";
+import { InverterStatusSection } from "./inverter-status-section";
+import type { InverterStatusData } from "./inverter-status-section";
 
 export const metadata: Metadata = {
   title: "Detail elektrárny | FVE Monitor",
 };
+
+type LatestReading = {
+  inverter_id: string;
+  recorded_at: string;
+  inverter_status: string | null;
+  soc: number | null;
+  vdc1: number | null; vdc2: number | null; vdc3: number | null; vdc4: number | null;
+  idc1: number | null; idc2: number | null; idc3: number | null; idc4: number | null;
+  acpower: number | null;
+  feedinpower: number | null;
+  powerdc1: number | null; powerdc2: number | null; powerdc3: number | null; powerdc4: number | null;
+  batpower: number | null;
+  ratedpower: number | null;
+};
+
+function calcPower(vdc: number | null, idc: number | null): number | null {
+  if (vdc == null || idc == null || vdc === 0 || idc === 0) return null;
+  return vdc * idc;
+}
 
 export default async function PlantDetailPage({
   params,
@@ -29,17 +52,32 @@ export default async function PlantDetailPage({
 
   const inverterIds = inverters?.map((i) => i.id) ?? [];
   let readings: InverterReading[] = [];
+  let mpptRaw: LatestReading[] = [];
+
   if (inverterIds.length > 0) {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-    const { data } = await supabase
-      .from("inverter_readings")
-      .select("inverter_id, recorded_at, soc, battemper, vdc1, vdc2, vdc3, vdc4, idc1, idc2, idc3, idc4, vac1, vac2, vac3, acpower, yieldtoday")
-      .in("inverter_id", inverterIds)
-      .gte("recorded_at", startOfDay.toISOString())
-      .order("recorded_at")
-      .returns<InverterReading[]>();
-    readings = data ?? [];
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    const [{ data: dailyData }, { data: mpptData }] = await Promise.all([
+      supabase
+        .from("inverter_readings")
+        .select("inverter_id, recorded_at, soc, battemper, vdc1, vdc2, vdc3, vdc4, idc1, idc2, idc3, idc4, vac1, vac2, vac3, acpower, yieldtoday")
+        .in("inverter_id", inverterIds)
+        .gte("recorded_at", startOfDay.toISOString())
+        .order("recorded_at")
+        .returns<InverterReading[]>(),
+      supabase
+        .from("inverter_readings")
+        .select("inverter_id, recorded_at, inverter_status, soc, vdc1, vdc2, vdc3, vdc4, idc1, idc2, idc3, idc4, acpower, feedinpower, powerdc1, powerdc2, powerdc3, powerdc4, batpower, ratedpower")
+        .in("inverter_id", inverterIds)
+        .gte("recorded_at", oneDayAgo)
+        .order("recorded_at", { ascending: false })
+        .returns<LatestReading[]>(),
+    ]);
+
+    readings = dailyData ?? [];
+    mpptRaw = mpptData ?? [];
   }
 
   const inverterChartData = (inverters ?? []).map((inv) => ({
@@ -48,6 +86,117 @@ export default async function PlantDetailPage({
     readings: readings.filter((r) => r.inverter_id === inv.id),
   }));
   const subscribed = plant.subscription_until ? plant.subscription_until >= today : false;
+
+  // Latest reading per inverter (mpptRaw is DESC, first hit per inverter_id = latest)
+  const latestPerInv = new Map<string, LatestReading>();
+  for (const r of mpptRaw) {
+    if (!latestPerInv.has(r.inverter_id)) latestPerInv.set(r.inverter_id, r);
+  }
+
+  // Plant-wide average tracker power
+  let plantTotal = 0;
+  let plantCount = 0;
+  for (const r of latestPerInv.values()) {
+    for (const [vdc, idc] of [
+      [r.vdc1, r.idc1],
+      [r.vdc2, r.idc2],
+      [r.vdc3, r.idc3],
+      [r.vdc4, r.idc4],
+    ] as [number | null, number | null][]) {
+      const p = calcPower(vdc, idc);
+      if (p !== null) {
+        plantTotal += p;
+        plantCount++;
+      }
+    }
+  }
+  const plantAvg = plantCount > 0 ? plantTotal / plantCount : null;
+
+  const inverterStatuses: InverterCard[] = (inverters ?? []).map((inv) => {
+    const r = latestPerInv.get(inv.id);
+    if (!r) {
+      return {
+        id: inv.id,
+        label: inv.label,
+        wifi_sn: inv.wifi_sn,
+        recorded_at: null,
+        inverter_status: null,
+        trackers: [],
+        hasAnomaly: false,
+      };
+    }
+
+    const fields = [
+      { n: 1, vdc: r.vdc1, idc: r.idc1 },
+      { n: 2, vdc: r.vdc2, idc: r.idc2 },
+      { n: 3, vdc: r.vdc3, idc: r.idc3 },
+      { n: 4, vdc: r.vdc4, idc: r.idc4 },
+    ];
+    const activePowers = fields
+      .map((t) => calcPower(t.vdc, t.idc))
+      .filter((p): p is number => p !== null);
+    const invAvg =
+      activePowers.length > 0
+        ? activePowers.reduce((a, b) => a + b, 0) / activePowers.length
+        : null;
+
+    const trackers: TrackerRow[] = fields.map((t) => {
+      const power = calcPower(t.vdc, t.idc);
+      return {
+        n: t.n,
+        vdc: t.vdc,
+        idc: t.idc,
+        power,
+        pctOfInvAvg:
+          power != null && invAvg != null && invAvg > 0
+            ? Math.round((power / invAvg) * 100)
+            : null,
+        pctOfPlantAvg:
+          power != null && plantAvg != null && plantAvg > 0
+            ? Math.round((power / plantAvg) * 100)
+            : null,
+      };
+    });
+
+    return {
+      id: inv.id,
+      label: inv.label,
+      wifi_sn: inv.wifi_sn,
+      recorded_at: r.recorded_at,
+      inverter_status: r.inverter_status,
+      trackers,
+      hasAnomaly: trackers.some((t) => t.pctOfInvAvg != null && t.pctOfInvAvg < 60),
+    };
+  });
+
+  // Aktuální stav střídačů — energetická data pro gauge sekci
+  const reservedPowerW = plant.reserved_power_w; // už v W
+
+  const inverterStatusData: InverterStatusData[] = (inverters ?? []).map((inv) => {
+    const r = latestPerInv.get(inv.id);
+    if (!r) {
+      return {
+        id: inv.id, label: inv.label, wifi_sn: inv.wifi_sn,
+        recorded_at: null, inverter_status: null,
+        pv_total: null, acpower: null, house_consumption: null,
+        feedinpower: null, batpower: null, soc: null,
+        rated_power: null, reserved_power_w: reservedPowerW,
+      };
+    }
+    const pvVals = [r.powerdc1, r.powerdc2, r.powerdc3, r.powerdc4]
+      .filter((p): p is number => p !== null);
+    const pv_total = pvVals.length > 0 ? pvVals.reduce((a, b) => a + b, 0) : null;
+    const house_consumption =
+      r.acpower !== null && r.feedinpower !== null ? r.acpower - r.feedinpower : null;
+    const rated_power = r.ratedpower ?? reservedPowerW;
+    return {
+      id: inv.id, label: inv.label, wifi_sn: inv.wifi_sn,
+      recorded_at: r.recorded_at, inverter_status: r.inverter_status,
+      pv_total, acpower: r.acpower, house_consumption,
+      feedinpower: r.feedinpower, batpower: r.batpower, soc: r.soc,
+      rated_power, reserved_power_w: reservedPowerW,
+    };
+  });
 
   return (
     <div className="min-h-full bg-zinc-50 px-4 py-12 dark:bg-black">
@@ -122,7 +271,7 @@ export default async function PlantDetailPage({
             <div>
               <dt className="text-xs text-zinc-500">Rezervovaný příkon</dt>
               <dd className="mt-0.5 text-sm text-zinc-900 dark:text-zinc-50">
-                {plant.reserved_power_kw != null ? `${plant.reserved_power_kw} kW` : "—"}
+                {plant.reserved_power_w != null ? `${plant.reserved_power_w.toLocaleString("cs-CZ")} W` : "—"}
               </dd>
             </div>
             <div>
@@ -158,6 +307,19 @@ export default async function PlantDetailPage({
             </div>
           </dl>
         </section>
+
+        {/* Stav MPPT trackerů */}
+        {inverterStatuses.length > 0 && (
+          <MpptStatus
+            inverters={inverterStatuses}
+            hasMultipleInverters={(inverters?.length ?? 0) > 1}
+          />
+        )}
+
+        {/* Aktuální stav střídačů */}
+        {inverterStatusData.length > 0 && (
+          <InverterStatusSection inverters={inverterStatusData} />
+        )}
 
         {/* Denní grafy */}
         {inverterIds.length > 0 && (
