@@ -80,6 +80,8 @@ export function DailyCharts({ inverters }: Props) {
           vac1: r.vac1,
           vac2: r.vac2,
           vac3: r.vac3,
+          acpower: r.acpower,
+          yieldtoday: r.yieldtoday,
         }));
 
         return (
@@ -208,6 +210,58 @@ export function DailyCharts({ inverters }: Props) {
                       <Line type="monotone" dataKey="pdc2" stroke="#a855f7" dot={false} strokeWidth={2} name="PDC2" />
                       <Line type="monotone" dataKey="pdc3" stroke="#ec4899" dot={false} strokeWidth={2} name="PDC3" />
                       <Line type="monotone" dataKey="pdc4" stroke="#14b8a6" dot={false} strokeWidth={2} name="PDC4" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChart />
+                )}
+              </ChartCard>
+
+              <ChartCard title="Výkon AC" unit="W">
+                {hasData(inv.readings, "acpower") ? (
+                  <ResponsiveContainer width="100%" height={192}>
+                    <LineChart data={points} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
+                      <XAxis dataKey="time" tick={{ fontSize: 11 }} />
+                      <YAxis unit="W" tick={{ fontSize: 11 }} width={52} />
+                      <Tooltip
+                        formatter={(v) => [`${v} W`, "AC výkon"]}
+                        labelFormatter={(l) => `čas: ${l}`}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="acpower"
+                        stroke="#eab308"
+                        dot={false}
+                        strokeWidth={2}
+                        name="AC výkon"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChart />
+                )}
+              </ChartCard>
+
+              <ChartCard title="Výnos dnes" unit="kWh">
+                {hasData(inv.readings, "yieldtoday") ? (
+                  <ResponsiveContainer width="100%" height={192}>
+                    <LineChart data={points} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
+                      <XAxis dataKey="time" tick={{ fontSize: 11 }} />
+                      <YAxis unit="kWh" tick={{ fontSize: 11 }} width={52} />
+                      <Tooltip
+                        formatter={(v) => [`${v} kWh`, "Výnos"]}
+                        labelFormatter={(l) => `čas: ${l}`}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="yieldtoday"
+                        stroke="#22c55e"
+                        dot={false}
+                        strokeWidth={2}
+                        name="Výnos"
+                      />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
