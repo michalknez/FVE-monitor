@@ -133,6 +133,25 @@ abych měl kompletní historii pro vyhodnocování a reporty.
 - Edge Function iteruje přes všechny aktivní invertory, volá Solax API, ukládá výsledky
 - Rate limit Solax API: max 10 req/min → při více invertorech nutný throttling
 
+**⚠️ K řešení — mechanismus spouštění:**
+Možnosti implementace pravidelného sběru dat každých 15 minut:
+
+A) **Supabase pg_cron + Edge Function** (doporučeno)
+   - pg_cron job v Supabase spouští Edge Function každých 15 min
+   - Edge Function volá Solax API a ukládá do DB
+   - Vše v rámci Supabase ekosystému, bez externích závislostí
+   - Omezení: Edge Function max. 150s běhu → throttling nutný
+
+B) **Netlify Scheduled Functions**
+   - Netlify cron job volá Next.js API route každých 15 min
+   - Jednodušší implementace, ale závislost na Netlify plánu
+
+C) **Externí cron (GitHub Actions / cron-job.org)**
+   - Volný cron service pinguje Next.js API endpoint
+   - Nejjednodušší, ale méně spolehlivé
+
+→ Doporučení: varianta A (Supabase pg_cron + Edge Function)
+
 ---
 
 ## 5. Zobrazování dat a historie
@@ -173,7 +192,27 @@ abych mohl přesně přečíst konkrétní hodnoty v daný čas.
 
 ## 6. Proměnné a mezní hodnoty — Alerting
 
-⏸ Odloženo na později.
+### US-040: Sledování minimálního SOC a doporučení MinSOC
+Jako admin chci sledovat nejnižší dosažený SOC baterie v průběhu dne,
+abych mohl doporučit zákazníkovi navýšení MinSOC při nedostatečné záloze.
+
+**Sezónní konfigurace (rozšíření `api_configs` nebo samostatná tabulka `seasons`):**
+| Atribut | Typ | Popis |
+|---------|-----|-------|
+| winter_start | date (MM-DD) | Začátek zimního období (např. 10-01) |
+| winter_end | date (MM-DD) | Konec zimního období (např. 03-31) |
+| summer_start | date (MM-DD) | Začátek letního období (např. 04-01) |
+| summer_end | date (MM-DD) | Konec letního období (např. 09-30) |
+
+**Logika vyhodnocení:**
+- Každý den najdi nejnižší zaznamenaný SOC elektrárny (min. z `inverter_readings.soc`)
+- Porovnej s prahovými hodnotami (budou definovány — jiné pro léto/zimu)
+- Pokud SOC klesne pod práh → doporučení pro admina: "Zvažte navýšení MinSOC na invertoru X"
+
+**Poznámky k doplnění:**
+- Jaká je prahová hodnota SOC pro doporučení? (např. pokud min. SOC < 20 % v zimě)
+- Doporučení zobrazit v aplikaci, nebo poslat emailem?
+- Je MinSOC nastavení per elektrárna, nebo globální?
 
 ---
 

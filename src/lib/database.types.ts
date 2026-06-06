@@ -38,6 +38,84 @@ export type Database = {
         };
         Relationships: [];
       };
+      plants: {
+        Row: {
+          id: string;
+          owner_first_name: string;
+          owner_last_name: string;
+          owner_email: string | null;
+          owner_phone: string | null;
+          address: string | null;
+          gps_lat: number | null;
+          gps_lng: number | null;
+          reserved_power_kw: number | null;
+          subscription_until: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_first_name: string;
+          owner_last_name: string;
+          owner_email?: string | null;
+          owner_phone?: string | null;
+          address?: string | null;
+          gps_lat?: number | null;
+          gps_lng?: number | null;
+          reserved_power_kw?: number | null;
+          subscription_until?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          owner_first_name?: string;
+          owner_last_name?: string;
+          owner_email?: string | null;
+          owner_phone?: string | null;
+          address?: string | null;
+          gps_lat?: number | null;
+          gps_lng?: number | null;
+          reserved_power_kw?: number | null;
+          subscription_until?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      inverters: {
+        Row: {
+          id: string;
+          plant_id: string;
+          wifi_sn: string;
+          brand: string;
+          label: string | null;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          plant_id: string;
+          wifi_sn: string;
+          brand: string;
+          label?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          plant_id?: string;
+          wifi_sn?: string;
+          brand?: string;
+          label?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -47,3 +125,5 @@ export type Database = {
 };
 
 export type ApiConfig = Database["public"]["Tables"]["api_configs"]["Row"];
+export type Plant = Database["public"]["Tables"]["plants"]["Row"];
+export type Inverter = Database["public"]["Tables"]["inverters"]["Row"];

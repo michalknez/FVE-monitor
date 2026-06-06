@@ -1,3 +1,8 @@
+// Typy a počáteční stavy pro Server Actions konfigurační stránky.
+// Záměrně mimo soubor s "use server" — ten smí exportovat jen async funkce.
+
+import type { SolaxRealtime } from "@/lib/solax";
+
 export type SaveState = {
   status: "idle" | "success" | "error";
   message: string;
@@ -5,12 +10,8 @@ export type SaveState = {
 
 export const initialSaveState: SaveState = { status: "idle", message: "" };
 
-export type TestResult = {
-  acpower: number | string | null;
-  inverterStatus: number | string | null;
-  yieldtoday: number | string | null;
-  uploadTime: string | null;
-};
+// Výsledek testu = realtime data ze Solaxu (sdílený typ).
+export type TestResult = SolaxRealtime;
 
 export type TestState = {
   status: "idle" | "success" | "error";

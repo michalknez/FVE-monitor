@@ -49,3 +49,6 @@ ziocU7n3
 
 # local Avast HTTPS-scanning root CA (machine-specific, for NODE_EXTRA_CA_CERTS)
 avast-root-ca.pem
+
+# Supabase local temp files (project ref, connection URLs — machine-specific)
+supabase/.temp/
