@@ -78,6 +78,16 @@ export function ConfigForm({ config }: { config: ApiConfig | null }) {
           </p>
           <p className="mt-1 text-zinc-600">{testState.message}</p>
           {testState.result && <SolaxRealtimePanel r={testState.result} />}
+          {testState.rawResponse && (
+            <details className="mt-4 border-t border-zinc-200 pt-4">
+              <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-zinc-400 hover:text-zinc-600">
+                Raw odpověď API
+              </summary>
+              <pre className="mt-2 overflow-x-auto rounded-md bg-zinc-900 p-4 text-xs text-green-400">
+                {JSON.stringify(testState.rawResponse, null, 2)}
+              </pre>
+            </details>
+          )}
         </div>
       )}
     </form>

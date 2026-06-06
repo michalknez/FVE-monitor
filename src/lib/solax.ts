@@ -58,13 +58,67 @@ export type SolaxRealtime = {
 };
 
 // Mapování kódu stavu invertoru na český popis.
-export const INVERTER_STATUS: Record<string, string> = {
-  "100": "Čeká na spuštění", "101": "Autotest", "102": "Normální provoz",
-  "103": "Obnovitelná porucha", "104": "Trvalá porucha", "105": "Aktualizace firmware",
-  "106": "Detekce EPS", "107": "Mimo síť (off-grid)", "108": "Testovací režim (IT)",
-  "109": "Režim spánku", "110": "Pohotovostní režim", "111": "FV probuzení baterie",
-  "112": "Detekce generátoru", "113": "Generátorový režim", "114": "Rychlé vypnutí",
-  "130": "VPP režim", "131": "TOU – vlastní spotřeba", "132": "TOU – nabíjení", "133": "TOU – vybíjení",
+// Zdroj: SolaxCloud User Monitoring API V6.1 (Table 5) + SolaXCloud User API V2.0 (Appendix 8.1)
+export const INVERTER_STATUS: Record<string, { cs: string; en: string; severity: "ok" | "warn" | "error" | "info" }> = {
+  "100": { cs: "Čeká na spuštění",          en: "Wait Mode",              severity: "info"  },
+  "101": { cs: "Kontrolní režim",            en: "Check Mode",             severity: "info"  },
+  "102": { cs: "Normální provoz",            en: "Normal Mode",            severity: "ok"    },
+  "103": { cs: "Porucha (obnovitelná)",      en: "Fault Mode",             severity: "error" },
+  "104": { cs: "Trvalá porucha",             en: "Permanent Fault Mode",   severity: "error" },
+  "105": { cs: "Aktualizace firmware",       en: "Update Mode",            severity: "info"  },
+  "106": { cs: "Kontrola EPS",              en: "EPS Check Mode",         severity: "info"  },
+  "107": { cs: "Režim EPS (off-grid)",       en: "EPS Mode",               severity: "warn"  },
+  "108": { cs: "Samotest",                   en: "Self-Test Mode",         severity: "info"  },
+  "109": { cs: "Nečinný (Idle)",             en: "Idle Mode",              severity: "info"  },
+  "110": { cs: "Pohotovostní režim",         en: "Standby Mode",           severity: "info"  },
+  "111": { cs: "FV probuzení baterie",       en: "PV Wake Up Bat Mode",    severity: "info"  },
+  "112": { cs: "Detekce generátoru",         en: "Gen Check Mode",         severity: "info"  },
+  "113": { cs: "Provoz na generátor",        en: "Gen Run Mode",           severity: "warn"  },
+  "114": { cs: "Rychlé vypnutí – pohotovost",en: "Fast Shutdown Standby",  severity: "warn"  },
+  "130": { cs: "VPP režim",                  en: "VPP Mode",               severity: "info"  },
+  "131": { cs: "TOU – vlastní spotřeba",     en: "TOU Self-Use",           severity: "ok"    },
+  "132": { cs: "TOU – nabíjení",             en: "TOU Charging",           severity: "ok"    },
+  "133": { cs: "TOU – vybíjení",             en: "TOU Discharging",        severity: "ok"    },
+};
+
+// Pomocná funkce — vrátí český popis + anglický název pro tooltip
+export function inverterStatusLabel(code: string | null): string {
+  if (!code) return "—";
+  const s = INVERTER_STATUS[code];
+  return s ? `${s.cs} (${code})` : `Neznámý stav (${code})`;
+}
+
+export function inverterStatusSeverity(code: string | null): "ok" | "warn" | "error" | "info" {
+  if (!code) return "info";
+  return INVERTER_STATUS[code]?.severity ?? "info";
+}
+
+// Mapování typu invertoru (inverterType)
+// Zdroj: SolaxCloud User Monitoring API V6.1 (Table 4)
+export const INVERTER_TYPE: Record<string, string> = {
+  "1":  "X1-LX",
+  "2":  "X-Hybrid",
+  "3":  "X1-Hybrid/Fit",
+  "4":  "X1-Boost/Air/Mini",
+  "5":  "X3-Hybrid/Fit",
+  "6":  "X3-20K/30K",
+  "7":  "X3-MIC/PRO",
+  "8":  "X1-Smart",
+  "9":  "X1-AC",
+  "10": "A1-Hybrid",
+  "11": "A1-Fit",
+  "12": "A1-Grid",
+  "13": "J1-ESS",
+  "14": "X3-Hybrid-G4",
+  "15": "X1-Hybrid-G4",
+  "16": "X3-MIC/PRO-G2",
+  "17": "X1-SPT",
+  "18": "X1-Boost/Mini-G4",
+  "19": "A1-HYB-G2",
+  "20": "A1-AC-G2",
+  "21": "A1-SMT-G2",
+  "22": "X3-FTH",
+  "23": "X3-MGA-G2",
 };
 
 export const BAT_STATUS: Record<string, string> = {
@@ -84,6 +138,8 @@ export type SolaxResult = {
   ok: boolean;
   message: string;
   result: SolaxRealtime | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rawResponse: Record<string, any> | null;
 };
 
 /**
@@ -109,14 +165,14 @@ export async function fetchSolaxRealtime(
     });
 
     if (!response.ok) {
-      return { ok: false, message: `API odpovědělo chybou HTTP ${response.status}.`, result: null };
+      return { ok: false, message: `API odpovědělo chybou HTTP ${response.status}.`, result: null, rawResponse: null };
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data = (await response.json()) as any;
 
     if (!data.success || !data.result) {
-      return { ok: false, message: data.exception?.trim() || "API vrátilo neúspěšnou odpověď.", result: null };
+      return { ok: false, message: data.exception?.trim() || "API vrátilo neúspěšnou odpověď.", result: null, rawResponse: data };
     }
 
     const r = data.result;
@@ -146,9 +202,9 @@ export async function fetchSolaxRealtime(
       epsfreq: n(r.epsfreq),
     };
 
-    return { ok: true, message: data.exception?.trim() || "Připojení proběhlo úspěšně.", result };
+    return { ok: true, message: data.exception?.trim() || "Připojení proběhlo úspěšně.", result, rawResponse: data };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Neznámá chyba sítě.";
-    return { ok: false, message: `Připojení selhalo: ${message}`, result: null };
+    return { ok: false, message: `Připojení selhalo: ${message}`, result: null, rawResponse: null };
   }
 }

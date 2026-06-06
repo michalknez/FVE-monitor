@@ -62,9 +62,9 @@ export async function testConnection(
   const token = String(formData.get("token") ?? "").trim();
   const wifiSn = String(formData.get("test_wifi_sn") ?? "").trim();
 
-  if (!url || !token) return { status: "error", message: "Pro test vyplňte API URL a token.", result: null };
-  if (!wifiSn) return { status: "error", message: "Pro test vyplňte WiFi SN.", result: null };
+  if (!url || !token) return { status: "error", message: "Pro test vyplňte API URL a token.", result: null, rawResponse: null };
+  if (!wifiSn) return { status: "error", message: "Pro test vyplňte WiFi SN.", result: null, rawResponse: null };
 
-  const { ok, message, result } = await fetchSolaxRealtime(url, token, wifiSn);
-  return { status: ok ? "success" : "error", message, result };
+  const { ok, message, result, rawResponse } = await fetchSolaxRealtime(url, token, wifiSn);
+  return { status: ok ? "success" : "error", message, result, rawResponse };
 }

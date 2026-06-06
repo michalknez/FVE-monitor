@@ -17,10 +17,13 @@ export type TestState = {
   status: "idle" | "success" | "error";
   message: string;
   result: TestResult | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rawResponse: Record<string, any> | null;
 };
 
 export const initialTestState: TestState = {
   status: "idle",
   message: "",
   result: null,
+  rawResponse: null,
 };

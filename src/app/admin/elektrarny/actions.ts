@@ -40,7 +40,7 @@ export async function savePlant(
     address: str(formData, "address") || null,
     gps_lat: num(formData, "gps_lat"),
     gps_lng: num(formData, "gps_lng"),
-    reserved_power_kw: num(formData, "reserved_power_kw"),
+    reserved_power_w: num(formData, "reserved_power_w"),
     subscription_until: str(formData, "subscription_until") || null,
     is_active: formData.get("is_active") === "on",
   };

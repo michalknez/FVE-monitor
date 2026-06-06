@@ -1,4 +1,4 @@
-import { BAT_STATUS, INVERTER_STATUS, type SolaxRealtime } from "@/lib/solax";
+import { BAT_STATUS, INVERTER_STATUS, INVERTER_TYPE, inverterStatusSeverity, type SolaxRealtime } from "@/lib/solax";
 
 function val(v: number | string | null, unit = ""): string {
   if (v === null || v === undefined) return "—";
@@ -23,10 +23,34 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+const SEVERITY_CLASS: Record<string, string> = {
+  ok:    "bg-green-100 text-green-800",
+  warn:  "bg-yellow-100 text-yellow-800",
+  error: "bg-red-100 text-red-800",
+  info:  "bg-zinc-100 text-zinc-700",
+};
+
+function StatusBadge({ code }: { code: string | null }) {
+  if (!code) return <span className="font-medium text-zinc-800">—</span>;
+  const s = INVERTER_STATUS[code];
+  const label = s ? s.cs : "Neznámý stav";
+  const en = s ? s.en : code;
+  const severity = inverterStatusSeverity(code);
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${SEVERITY_CLASS[severity]}`}
+      title={`${en} — kód ${code}`}
+    >
+      {label}
+      <span className="opacity-60">({code})</span>
+    </span>
+  );
+}
+
 /** Plný přehled všech realtime hodnot ze Solax invertoru. */
 export function SolaxRealtimePanel({ r }: { r: SolaxRealtime }) {
-  const statusLabel = r.inverterStatus
-    ? `${INVERTER_STATUS[r.inverterStatus] ?? "Neznámý"} (${r.inverterStatus})`
+  const typeLabel = r.inverterType
+    ? `${INVERTER_TYPE[r.inverterType] ?? "Neznámý typ"} (${r.inverterType})`
     : "—";
   const batStatusLabel = r.batStatus
     ? `${BAT_STATUS[r.batStatus] ?? "Neznámý"} (${r.batStatus})`
@@ -39,8 +63,9 @@ export function SolaxRealtimePanel({ r }: { r: SolaxRealtime }) {
         <Row label="Sériové číslo střídače" value={val(r.inverterSn)} />
         <Row label="Sériové číslo WiFi modulu" value={val(r.sn)} />
         <Row label="Jmenovitý výkon" value={val(r.ratedPower, "kW")} />
-        <Row label="Typ střídače" value={val(r.inverterType)} />
-        <Row label="Stav střídače" value={statusLabel} />
+        <Row label="Typ střídače" value={typeLabel} />
+        <dt className="text-zinc-500">Stav střídače</dt>
+        <dd><StatusBadge code={r.inverterStatus} /></dd>
         <Row label="Čas záznamu" value={val(r.uploadTime)} />
         <Row label="Časová zóna" value={val(r.timeZone)} />
       </Section>

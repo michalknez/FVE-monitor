@@ -37,6 +37,77 @@ abych mohl načítat data z elektráren.
 
 ---
 
+## 2b. API Konfigurace — GoodWe (budoucí)
+
+**GoodWe SEMS Portal API — odlišnosti od Solax:**
+
+Autentizace probíhá ve dvou krocích:
+1. POST `https://www.semsportal.com/api/v1/Common/CrossLogin` s emailem a heslem → vrátí dynamický `token`, `uid`, `timestamp` a `api_url`
+2. POST `{api_url}/v1/PowerStation/GetMonitorDetailByPowerstationId` s `powerStationId` a Token hlavičkou
+
+**Rozšíření `api_configs` pro GoodWe:**
+| Atribut | Typ | Popis |
+|---------|-----|-------|
+| username | text | Přihlašovací email do SEMS portálu |
+| password | text | Heslo (šifrované) |
+| sems_token | text | Dočasný token (cachovat, obnovovat při expiraci) |
+| sems_uid | text | UID z CrossLogin response |
+| sems_api_url | text | Dynamická API URL z CrossLogin response |
+
+**Identifikátor invertoru:** `powerStationId` (z URL portálu semsportal.com) — uložit v tabulce `inverters` jako nové pole `external_id`
+
+**Implementační poznámky:**
+- Token expiruje → Edge Function musí detekovat expiraci a volat CrossLogin znovu
+- Limit: 3600 volání/hod (výrazně více než Solax 10/min)
+- Oficiální OpenAPI vyžaduje licenční smlouvu → používáme SEMS Portal API
+
+### US-002: Konfigurace GoodWe API na stránce /admin/konfigurace
+
+**Změny v UI — dynamický formulář podle značky:**
+
+Když uživatel vybere **Solax** (stávající chování):
+- API URL (editovatelné, default: https://global.solaxcloud.com)
+- Token (password input)
+- WiFi SN pro test
+
+Když uživatel vybere **GoodWe** (nové):
+- API URL skryto (fixní: https://www.semsportal.com — zobrazit jako read-only info)
+- Email (přihlašovací email do SEMS portálu)
+- Heslo (password input)
+- PowerStation ID pro test (najde se v URL portálu: semsportal.com/PowerStation/PowerStatusSnMin/**{ID}**)
+
+**Test připojení GoodWe — dva kroky na serveru:**
+1. CrossLogin → získej token, uid, api_url
+2. GetMonitorDetailByPowerstationId → ověř připojení a zobraz data elektrárny
+
+**Databázové změny — rozšíření tabulky `api_configs`:**
+```sql
+alter table api_configs
+  add column username text,           -- GoodWe: SEMS email
+  add column password text,           -- GoodWe: SEMS heslo (šifrované vault)
+  add column sems_token text,         -- GoodWe: cachovaný session token
+  add column sems_uid text,           -- GoodWe: uid z CrossLogin
+  add column sems_api_url text,       -- GoodWe: dynamická API URL z CrossLogin
+  add column sems_token_expires_at timestamptz; -- GoodWe: expirace tokenu
+```
+
+**Databázové změny — tabulka `inverters`:**
+```sql
+alter table inverters
+  add column external_id text; -- GoodWe: powerStationId; Solax: prázdné (používá wifi_sn)
+```
+
+**Bezpečnostní poznámka:**
+Heslo GoodWe ukládat přes Supabase Vault (ne plain text) — `vault.create_secret()`.
+
+**Formulář — technická implementace:**
+- React state pro sledování vybrané značky
+- Podmíněné renderování polí podle značky
+- Server action `saveConfig` rozlišuje brand a ukládá správná pole
+- Server action `testConnection` volá správnou logiku podle brand
+
+---
+
 ## 3. Správa elektráren (Plants)
 
 ### US-010: Seznam elektráren
@@ -230,11 +301,135 @@ Evidujeme pouze datum, do kdy je předplatné aktivní.
 | Atribut | Typ | Popis |
 |---------|-----|-------|
 | subscription_until | date | Datum konce předplatného (null = bez předplatného) |
+| export_limit_mode | enum | Režim hlídání přetoků: none / static / price_based |
+| export_limit_w | integer | Statický limit přetoku (W) — platí jen pro mode=static |
+
+**Režimy hlídání přetoků (`export_limit_mode`):**
+- **none** — přetoky se nehlídají
+- **static** — hlídá se pevný limit v W zadaný ručně (`export_limit_w`) — vhodné pro instalace s pevnou smlouvou o přetoku se sítí
+- **price_based** — limit se mění podle aktuální ceny elektřiny (logika k upřesnění — kdy se vyplatí přetáčet, kdy ne)
+
+---
+
+### US-035: Import spotových cen elektřiny
+
+**Zdroj dat: spotovaelektrina.cz (zdarma, OTE-ČR data)**
+
+Klíčové endpointy:
+| Endpoint | Vrací | Použití |
+|----------|-------|---------|
+| `GET /api/v1/price/get-actual-price-czk` | aktuální cena Kč/MWh | zobrazení aktuální ceny |
+| `GET /api/v1/price/get-actual-price-level` | low / medium / high | rychlé pásmo |
+| `GET /api/v1/price/get-actual-price-json` | detail aktuální čtvrthodiny (JSON) | přesná hodnota + timestamp |
+| `GET /api/v1/price/get-prices-json-qh` | dnešek + zítřek, čtvrthodinově | uložení do DB, plánování |
+
+**Důležité:** od 1. 10. 2025 jsou data čtvrthodinová = shoduje se s naším 15min sběrem dat z invertorů.
+
+**Datový model — tabulka `spot_prices`:**
+| Atribut | Typ | Popis |
+|---------|-----|-------|
+| id | uuid | PK |
+| interval_start | timestamptz | Začátek čtvrthodiny |
+| interval_end | timestamptz | Konec čtvrthodiny |
+| price_czk_mwh | numeric | Cena Kč/MWh |
+| price_level | text | low / medium / high |
+| created_at | timestamptz | |
+
+**Implementace:**
+- Supabase Edge Function `fetch-spot-prices` volaná pg_cron jednou denně po 14:00 (kdy jsou k dispozici ceny na zítřek)
+- Stáhne čtvrthodinové ceny pro dnešek + zítřek a upsertne do `spot_prices`
+- Konverze: API vrací Kč/MWh → pro zobrazení převést na Kč/kWh (dělit 1000)
+
+---
+
+### US-036: Hlídání přetoků vůči limitní ceně
+
+**Konfigurace per elektrárna — rozšíření tabulky `plants`:**
+| Atribut | Typ | Popis |
+|---------|-----|-------|
+| export_limit_mode | text | none / static / price_based |
+| export_limit_w | integer | Statický limit (W) pro mode=static |
+| export_price_threshold_czk | numeric | Limitní cena Kč/MWh — přetoky nevhodné pod touto cenou |
+
+**Logika hlídání (mode=price_based):**
+1. Při každém sběru dat (15 min) porovnej:
+   - `inverter_readings.feedinpower` > 0 (elektrárna přetáčí do sítě)
+   - Aktuální spotová cena (`spot_prices` pro daný interval) < `export_price_threshold_czk`
+2. Pokud obě podmínky platí → zaloguj upozornění do tabulky `alerts`
+3. Admin vidí upozornění na stránce Data Monitoring: "Elektrárna X přetáčí při ceně Y Kč/MWh (pod limitem Z Kč/MWh)"
+
+**Příklad nastavení:**
+- Zákazník nechce přetáčet při ceně pod 500 Kč/MWh → `export_price_threshold_czk = 500`
+- Systém upozorní, když spot cena < 500 Kč/MWh a `feedinpower` > 0
+
+**Otevřené otázky:**
+- Zobrazovat aktuální spot cenu rovnou na dashboardu / detailu elektrárny?
+- Zítřejší ceny po 14:00 — chceš prediktivní upozornění ("zítra ráno bude cena nízká")?
 
 **Chování:**
 - Pokud `subscription_until` < dnes → předplatné expirováno
 - Admin vidí stav předplatného v seznamu elektráren
 - Reporty se generují pouze pro elektrárny s aktivním předplatným
+
+---
+
+## 7b. Počasí podle GPS elektrárny
+
+### US-037: Import počasí a zobrazení na detailu elektrárny
+
+**Zdroj dat: Open-Meteo (zdarma, bez API klíče)**
+
+API volání:
+```
+GET https://api.open-meteo.com/v1/forecast
+  ?latitude={gps_lat}
+  &longitude={gps_lng}
+  &hourly=temperature_2m,cloud_cover,shortwave_radiation,precipitation,weather_code
+  &timezone=Europe/Prague
+  &forecast_days=3
+```
+
+**Proměnné relevantní pro FV monitoring:**
+| Proměnná | Jednotka | Použití |
+|----------|----------|---------|
+| `shortwave_radiation` | W/m² | Globální sluneční záření — koreluje s výrobou FV |
+| `cloud_cover` | % | Oblačnost — vysvětluje pokles výkonu trackerů |
+| `temperature_2m` | °C | Teplota — vliv na účinnost panelů |
+| `precipitation` | mm | Srážky |
+| `weather_code` | WMO kód | Typ počasí (jasno, oblačno, déšť, sníh...) |
+
+**Výhody Open-Meteo:**
+- Zcela zdarma, bez API klíče, bez registrace
+- GPS souboradnice přímo z tabulky `plants` (gps_lat, gps_lng)
+- Předpověď až 16 dní dopředu
+- Čtvrthodinové a hodinové rozlišení
+- Pokrývá celou ČR (model DWD + ECMWF)
+
+**Datový model — tabulka `weather_forecasts`:**
+| Atribut | Typ | Popis |
+|---------|-----|-------|
+| id | uuid | PK |
+| plant_id | uuid | FK → plants.id |
+| interval_start | timestamptz | Začátek hodiny |
+| shortwave_radiation | numeric | Sluneční záření (W/m²) |
+| cloud_cover | integer | Oblačnost (%) |
+| temperature | numeric | Teplota (°C) |
+| precipitation | numeric | Srážky (mm) |
+| weather_code | integer | WMO kód počasí |
+| created_at | timestamptz | |
+
+**Implementace:**
+- Edge Function `fetch-weather` volaná pg_cron každé 3 hodiny
+- Stáhne předpověď pro každou aktivní elektrárnu dle GPS a upsertne do DB
+- Žádný API klíč — volání přímo z Edge Function
+
+**Zobrazení na detailu elektrárny:**
+- Aktuální počasí (ikonka + teplota + oblačnost + záření W/m²) v hlavičce stránky
+- Předpověď na dnešek/zítřek — mini pruh s hodinovými hodnotami záření
+- Korelace: porovnání předpovězeného záření vs. skutečného výkonu FV (odhalí anomálie způsobené počasím vs. technickou závadou)
+
+**Budoucí možnost — Forecast.Solar:**
+Specializovaná služba předpovídající přímo výrobu FV v kWh na základě parametrů panelů (kWp, sklon, azimut). Vhodné pro pozdější fázi kdy budeme evidovat technické parametry instalace.
 
 ---
 

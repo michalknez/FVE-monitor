@@ -68,9 +68,9 @@ export function PlantForm({ plant }: { plant: Plant | null }) {
             defaultValue={plant?.gps_lng ?? ""} className={inputClass} />
         </div>
         <div>
-          <label htmlFor="reserved_power_kw" className={labelClass}>Rezerv. příkon (kW)</label>
-          <input id="reserved_power_kw" name="reserved_power_kw" type="text" inputMode="decimal"
-            defaultValue={plant?.reserved_power_kw ?? ""} className={inputClass} />
+          <label htmlFor="reserved_power_w" className={labelClass}>Rezervovaný příkon (W)</label>
+          <input id="reserved_power_w" name="reserved_power_w" type="text" inputMode="decimal"
+            defaultValue={plant?.reserved_power_w ?? ""} placeholder="např. 3500" className={inputClass} />
         </div>
       </div>
 
