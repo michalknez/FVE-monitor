@@ -94,6 +94,7 @@ export async function addInverter(
     wifi_sn: wifiSn,
     brand,
     label: str(formData, "label") || null,
+    external_id: str(formData, "external_id") || null,
   });
   if (error) return { status: "error", message: `Přidání selhalo: ${error.message}` };
 
@@ -120,6 +121,7 @@ export async function updateInverter(
       wifi_sn: wifiSn,
       brand,
       label: str(formData, "label") || null,
+      external_id: str(formData, "external_id") || null,
       is_active: formData.get("is_active") === "on",
     })
     .eq("id", id);

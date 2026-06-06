@@ -16,6 +16,7 @@ const BRANDS = ["Solax", "GoodWe"];
 
 function InverterRow({ inv, plantId }: { inv: Inverter; plantId: string }) {
   const [editing, setEditing] = useState(false);
+  const [brand, setBrand] = useState(inv.brand);
   const [saveState, saveAction, savePending] = useActionState(updateInverter, initialInverterState);
   const [delState, delAction, delPending] = useActionState(deleteInverter, initialInverterState);
 
@@ -31,18 +32,21 @@ function InverterRow({ inv, plantId }: { inv: Inverter; plantId: string }) {
           <input type="hidden" name="plant_id" value={plantId} />
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <label className={labelClass}>WiFi SN</label>
+              <label className={labelClass}>
+                {brand === "GoodWe" ? "Sériové číslo (SN)" : "WiFi SN"}
+              </label>
               <input
                 name="wifi_sn"
                 type="text"
                 required
                 defaultValue={inv.wifi_sn}
+                placeholder={brand === "GoodWe" ? "9010KETU21BW4058" : "SUT****VB1"}
                 className={inputClass}
               />
             </div>
             <div>
               <label className={labelClass}>Značka</label>
-              <select name="brand" defaultValue={inv.brand} className={inputClass}>
+              <select name="brand" value={brand} onChange={(e) => setBrand(e.target.value)} className={inputClass}>
                 {BRANDS.map((b) => (
                   <option key={b} value={b}>{b}</option>
                 ))}
@@ -59,6 +63,24 @@ function InverterRow({ inv, plantId }: { inv: Inverter; plantId: string }) {
               />
             </div>
           </div>
+          {brand === "GoodWe" && (
+            <div>
+              <label className={labelClass}>
+                PowerStation ID{" "}
+                <span className="text-zinc-400 font-normal">(z URL portálu semsportal.com)</span>
+              </label>
+              <input
+                name="external_id"
+                type="text"
+                defaultValue={inv.external_id ?? ""}
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                className={inputClass}
+              />
+            </div>
+          )}
+          {brand !== "GoodWe" && (
+            <input type="hidden" name="external_id" value="" />
+          )}
           <label className="flex items-center gap-2 text-sm text-zinc-700">
             <input
               type="checkbox"
@@ -99,7 +121,9 @@ function InverterRow({ inv, plantId }: { inv: Inverter; plantId: string }) {
           {inv.label ?? inv.wifi_sn}
         </p>
         <p className="text-xs text-zinc-500">
-          {inv.label ? `${inv.wifi_sn} · ` : ""}{inv.brand} ·{" "}
+          {inv.label ? `${inv.wifi_sn} · ` : ""}{inv.brand}
+          {inv.external_id && <span className="ml-1 text-zinc-400">· PS: {inv.external_id.slice(0, 8)}…</span>}
+          {" · "}
           <span className={inv.is_active ? "text-green-600" : "text-zinc-400"}>
             {inv.is_active ? "Aktivní" : "Neaktivní"}
           </span>
@@ -135,10 +159,11 @@ function InverterRow({ inv, plantId }: { inv: Inverter; plantId: string }) {
 
 function AddInverterForm({ plantId }: { plantId: string }) {
   const [open, setOpen] = useState(false);
+  const [brand, setBrand] = useState("Solax");
   const [state, action, pending] = useActionState(addInverter, initialInverterState);
 
   useEffect(() => {
-    if (state.status === "success") setOpen(false);
+    if (state.status === "success") { setOpen(false); setBrand("Solax"); }
   }, [state.status]);
 
   if (!open) {
@@ -159,18 +184,20 @@ function AddInverterForm({ plantId }: { plantId: string }) {
         <input type="hidden" name="plant_id" value={plantId} />
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
-            <label className={labelClass}>WiFi SN *</label>
+            <label className={labelClass}>
+              {brand === "GoodWe" ? "Sériové číslo (SN) *" : "WiFi SN *"}
+            </label>
             <input
               name="wifi_sn"
               type="text"
               required
-              placeholder="SN123456789"
+              placeholder={brand === "GoodWe" ? "9010KETU21BW4058" : "SUT****VB1"}
               className={inputClass}
             />
           </div>
           <div>
             <label className={labelClass}>Značka</label>
-            <select name="brand" defaultValue="Solax" className={inputClass}>
+            <select name="brand" value={brand} onChange={(e) => setBrand(e.target.value)} className={inputClass}>
               {BRANDS.map((b) => (
                 <option key={b} value={b}>{b}</option>
               ))}
@@ -186,6 +213,26 @@ function AddInverterForm({ plantId }: { plantId: string }) {
             />
           </div>
         </div>
+        {brand === "GoodWe" && (
+          <div>
+            <label className={labelClass}>
+              PowerStation ID{" "}
+              <span className="text-zinc-400 font-normal">(z URL portálu semsportal.com)</span>
+            </label>
+            <input
+              name="external_id"
+              type="text"
+              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              className={inputClass}
+            />
+            <p className="mt-1 text-xs text-zinc-400">
+              Najdeš ho v URL: semsportal.com/PowerStation/PowerStatusSnMin/<strong>{"{ID}"}</strong>
+            </p>
+          </div>
+        )}
+        {brand !== "GoodWe" && (
+          <input type="hidden" name="external_id" value="" />
+        )}
         <div className="flex items-center gap-3">
           <button
             type="submit"

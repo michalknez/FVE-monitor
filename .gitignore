@@ -52,3 +52,6 @@ avast-root-ca.pem
 
 # Supabase local temp files (project ref, connection URLs — machine-specific)
 supabase/.temp/
+
+# Claude Code local settings (machine-specific paths and permissions)
+.claude/settings.local.json
