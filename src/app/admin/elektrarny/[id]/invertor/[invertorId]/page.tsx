@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { inverterStatusLabel, inverterStatusSeverity } from "@/lib/solax";
 import { MpptCharts } from "./mppt-charts";
 import type { TrackerData, TrendPoint, InverterBar } from "./mppt-charts";
 
@@ -41,31 +42,12 @@ function calcPower(vdc: number | null, idc: number | null): number | null {
   return Math.round(vdc * idc);
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  "0": "Čekání",
-  "1": "Kontrola",
-  "3": "Normální provoz",
-  "4": "Porucha",
-  "5": "Trvalá porucha",
-  "6": "Aktualizace firmware",
-  "7": "Kontrola EPS",
-  "8": "Nouzový provoz (EPS)",
-  "9": "Vlastní test",
-  "10": "Nečinný",
-  "11": "Pohotovost",
-  "97": "Export Control",
-  "98": "Nabíjení",
-  "99": "AC nabíjení",
+const SEVERITY_CLASS: Record<string, string> = {
+  ok:    "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400",
+  warn:  "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400",
+  error: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400",
+  info:  "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
 };
-
-function getStatusClass(status: string | null): string {
-  if (!status) return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
-  if (["4", "5"].includes(status))
-    return "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400";
-  if (["3", "97", "98", "99"].includes(status))
-    return "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400";
-  return "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400";
-}
 
 function StatCard({
   label,
@@ -286,9 +268,8 @@ export default async function InverterDetailPage({
   // ---------------------------------------------------------------------------
 
   const invertorLabel = inverter.label ?? inverter.wifi_sn;
-  const statusLabel = last?.inverter_status
-    ? (STATUS_LABELS[last.inverter_status] ?? `Stav ${last.inverter_status}`)
-    : null;
+  const statusLabel = last?.inverter_status ? inverterStatusLabel(last.inverter_status) : null;
+  const statusSeverity = last?.inverter_status ? inverterStatusSeverity(last.inverter_status) : "info";
 
   return (
     <div className="min-h-full bg-zinc-50 px-4 py-12 dark:bg-black">
@@ -360,9 +341,7 @@ export default async function InverterDetailPage({
               {statusLabel && (
                 <div className="mt-4">
                   <p className="mb-1 text-xs text-zinc-500">Stav střídače</p>
-                  <span
-                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusClass(last.inverter_status)}`}
-                  >
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${SEVERITY_CLASS[statusSeverity]}`}>
                     {statusLabel}
                   </span>
                 </div>
