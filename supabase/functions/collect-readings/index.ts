@@ -93,7 +93,18 @@ function n(v: unknown): number | null {
   return isNaN(num) ? null : num;
 }
 
-function mapGoodWeInverter(d: AnyObj, inverterId: string): AnyObj {
+function pdc(v: unknown, i: unknown): number | null {
+  const vn = n(v);
+  const iin = n(i);
+  if (vn === null || iin === null) return null;
+  return Math.round(vn * iin);
+}
+
+// inv = celý objekt invertoru z GoodWe API (inv.d = přímá data, inv.invert_full = kompletní data)
+function mapGoodWeInverter(inv: AnyObj, inverterId: string): AnyObj {
+  const d = inv.d ?? {};
+  const full = inv.invert_full ?? {};
+
   // Parsuj last_refresh_time z formátu "dd.MM.yyyy HH:mm:ss"
   let recorded_at: string;
   try {
@@ -104,11 +115,21 @@ function mapGoodWeInverter(d: AnyObj, inverterId: string): AnyObj {
     recorded_at = new Date().toISOString();
   }
 
-  // GoodWe pmeter: záporné = export do sítě → obrátíme znaménko pro konzistenci se Solaxem
-  const feedinpower = d.pmeter != null ? -(Number(d.pmeter)) : null;
+  // SOC: v d objektu je jako string "99%", v invert_full jako číslo
+  const socRaw = full.soc ?? d.soc;
+  const soc = typeof socRaw === "string"
+    ? n(parseFloat(socRaw))
+    : n(socRaw);
 
-  // BMS teplota z more_batterys pokud dostupná
-  const battemper = d.more_batterys?.[0]?.bms_temperature ?? null;
+  // feedinpower: pmeter je v invert_full, záporné = export → obrátíme znaménko
+  const pmeter = full.pmeter ?? null;
+  const feedinpower = pmeter != null ? -(Number(pmeter)) : null;
+
+  // batpower: battery_power na vnějším objektu nebo total_pbattery v invert_full
+  const batpower = n(inv.battery_power ?? full.total_pbattery ?? null);
+
+  // BMS teplota baterie
+  const battemper = n(full.more_batterys?.[0]?.bms_temperature ?? null);
 
   return {
     inverter_id: inverterId,
@@ -116,15 +137,19 @@ function mapGoodWeInverter(d: AnyObj, inverterId: string): AnyObj {
     vdc1: n(d.vpv1), vdc2: n(d.vpv2), vdc3: n(d.vpv3), vdc4: n(d.vpv4),
     idc1: n(d.ipv1), idc2: n(d.ipv2), idc3: n(d.ipv3), idc4: n(d.ipv4),
     vac1: n(d.vac1), vac2: n(d.vac2), vac3: n(d.vac3),
-    soc: n(d.soc),
-    battemper: n(battemper),
+    soc,
+    battemper,
     acpower: n(d.pac),
     yieldtoday: n(d.eDay),
     inverter_status: d.work_mode ?? null,
     feedinpower: isNaN(feedinpower as number) ? null : feedinpower,
-    powerdc1: null, powerdc2: null, powerdc3: null, powerdc4: null, // GoodWe nemá powerdc přímo
-    batpower: n(d.more_batterys?.[0]?.pbattery ?? null),
-    ratedpower: null,
+    // GoodWe: powerdc = vpv * ipv
+    powerdc1: pdc(d.vpv1, d.ipv1),
+    powerdc2: pdc(d.vpv2, d.ipv2),
+    powerdc3: pdc(d.vpv3, d.ipv3),
+    powerdc4: pdc(d.vpv4, d.ipv4),
+    batpower,
+    ratedpower: n(d.capacity ? parseFloat(d.capacity) * 1000 : null),
   };
 }
 
@@ -154,6 +179,8 @@ Deno.serve(async (_req) => {
   for (const c of configs ?? []) configMap[c.brand.toLowerCase()] = c;
 
   const results = { success: 0, skipped: 0, failed: 0 };
+  const errors: string[] = [];
+  const log = (msg: string) => { console.error(msg); errors.push(msg); };
 
   // ---- Solax invertory -------------------------------------------------------
   const solaxInverters = inverters.filter(i => i.brand.toLowerCase() === "solax");
@@ -161,17 +188,19 @@ Deno.serve(async (_req) => {
 
   for (let i = 0; i < solaxInverters.length; i++) {
     const inv = solaxInverters[i];
-    if (!solaxCfg?.token) { results.skipped++; continue; }
+    if (!solaxCfg?.token) { results.skipped++; log(`Solax ${inv.wifi_sn}: chybí token`); continue; }
     if (i > 0) await sleep(SOLAX_THROTTLE_MS);
 
     try {
       const r = await fetchSolaxReading(solaxCfg.url, solaxCfg.token, inv.wifi_sn);
-      if (!r) { results.skipped++; continue; }
-      const { error } = await supabase.from("inverter_readings").insert(mapSolaxReading(r, inv.id));
-      if (error) { console.error("Solax insert:", error.message); results.failed++; }
+      if (!r) { results.skipped++; log(`Solax ${inv.wifi_sn}: API vrátilo null`); continue; }
+      const row = mapSolaxReading(r, inv.id);
+      const { error } = await supabase.from("inverter_readings")
+        .upsert(row, { onConflict: "inverter_id,recorded_at", ignoreDuplicates: true });
+      if (error) { log(`Solax insert ${inv.wifi_sn}: ${error.message}`); results.failed++; }
       else results.success++;
     } catch (err) {
-      console.error(`Solax ${inv.wifi_sn}:`, err);
+      log(`Solax ${inv.wifi_sn}: ${err}`);
       results.failed++;
     }
   }
@@ -181,53 +210,55 @@ Deno.serve(async (_req) => {
   const goodweCfg = configMap["goodwe"];
 
   if (goodweInverters.length > 0 && goodweCfg) {
-    // Přihlaš se do GoodWe
     const auth = await goodweLogin(goodweCfg.username, goodweCfg.password);
     if (!auth) {
-      console.error("GoodWe CrossLogin selhal");
+      log(`GoodWe CrossLogin selhal (user: ${goodweCfg.username})`);
       results.failed += goodweInverters.length;
     } else {
-      // Seskup invertory dle powerStationId (external_id)
       const byStation = new Map<string, typeof goodweInverters>();
       for (const inv of goodweInverters) {
         const psId = inv.external_id ?? "";
-        if (!psId) { results.skipped++; continue; }
+        if (!psId) { results.skipped++; log(`GoodWe ${inv.wifi_sn}: chybí external_id`); continue; }
         if (!byStation.has(psId)) byStation.set(psId, []);
         byStation.get(psId)!.push(inv);
       }
 
-      // 1 API volání per elektrárna
       for (const [powerStationId, stationInverters] of byStation) {
         try {
           const stationData = await fetchGoodWeStation(auth, powerStationId);
           if (!stationData) {
+            log(`GoodWe station ${powerStationId}: API vrátilo null`);
             results.failed += stationInverters.length;
             continue;
           }
 
-          // Indexuj invertory z API odpovědi podle sn
           const apiInverterMap = new Map<string, AnyObj>();
           for (const apiInv of stationData.inverter ?? []) {
-            if (apiInv.d) apiInverterMap.set(apiInv.sn, apiInv.d);
+            apiInverterMap.set(apiInv.sn, apiInv);
           }
 
-          // Ulož pro každý náš invertor
           for (const inv of stationInverters) {
-            const d = apiInverterMap.get(inv.wifi_sn);
-            if (!d) { results.skipped++; continue; }
-            const { error } = await supabase.from("inverter_readings").insert(mapGoodWeInverter(d, inv.id));
-            if (error) { console.error("GoodWe insert:", error.message); results.failed++; }
+            const apiInv = apiInverterMap.get(inv.wifi_sn);
+            if (!apiInv?.d) { results.skipped++; log(`GoodWe ${inv.wifi_sn}: nenalezen v API (sn nesedí nebo chybí d)`); continue; }
+            const row = mapGoodWeInverter(apiInv, inv.id);
+            const { error } = await supabase.from("inverter_readings")
+              .upsert(row, { onConflict: "inverter_id,recorded_at", ignoreDuplicates: true });
+            if (error) { log(`GoodWe insert ${inv.wifi_sn}: ${error.message}`); results.failed++; }
             else results.success++;
           }
         } catch (err) {
-          console.error(`GoodWe station ${powerStationId}:`, err);
+          log(`GoodWe station ${powerStationId}: ${err}`);
           results.failed += stationInverters.length;
         }
       }
     }
+  } else if (goodweInverters.length > 0 && !goodweCfg) {
+    log("GoodWe: chybí konfigurace v api_configs");
+    results.failed += goodweInverters.length;
   }
 
-  return new Response(JSON.stringify({ ...results, total: inverters.length }), {
-    headers: { "Content-Type": "application/json" },
-  });
+  return new Response(
+    JSON.stringify({ ...results, total: inverters.length, ...(errors.length ? { errors } : {}) }),
+    { headers: { "Content-Type": "application/json" } },
+  );
 });
