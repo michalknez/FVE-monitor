@@ -9,6 +9,8 @@ import { MpptStatus } from "./mppt-status";
 import type { InverterCard, TrackerRow } from "./mppt-status";
 import { InverterStatusSection } from "./inverter-status-section";
 import type { InverterStatusData } from "./inverter-status-section";
+import { MonthlyProduction } from "./monthly-production";
+import type { MonthlyRow } from "./monthly-production";
 
 export const metadata: Metadata = {
   title: "Detail elektrárny | FVE Monitor",
@@ -53,13 +55,14 @@ export default async function PlantDetailPage({
   const inverterIds = inverters?.map((i) => i.id) ?? [];
   let readings: InverterReading[] = [];
   let mpptRaw: LatestReading[] = [];
+  let monthlyRows: MonthlyRow[] = [];
 
   if (inverterIds.length > 0) {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    const [{ data: dailyData }, { data: mpptData }] = await Promise.all([
+    const [{ data: dailyData }, { data: mpptData }, { data: monthlyData }] = await Promise.all([
       supabase
         .from("inverter_readings")
         .select("inverter_id, recorded_at, soc, battemper, vdc1, vdc2, vdc3, vdc4, idc1, idc2, idc3, idc4, vac1, vac2, vac3, acpower, yieldtoday")
@@ -74,10 +77,14 @@ export default async function PlantDetailPage({
         .gte("recorded_at", oneDayAgo)
         .order("recorded_at", { ascending: false })
         .returns<LatestReading[]>(),
+      supabase.rpc("get_monthly_production", { p_inverter_ids: inverterIds }),
     ]);
 
     readings = dailyData ?? [];
     mpptRaw = mpptData ?? [];
+    monthlyRows = ((monthlyData ?? []) as { inverter_id: string; month: string; monthly_kwh: number | string }[]).map(
+      (r) => ({ inverter_id: r.inverter_id, month: r.month, monthly_kwh: Number(r.monthly_kwh) }),
+    );
   }
 
   const inverterChartData = (inverters ?? []).map((inv) => ({
@@ -319,6 +326,14 @@ export default async function PlantDetailPage({
         {/* Aktuální stav střídačů */}
         {inverterStatusData.length > 0 && (
           <InverterStatusSection inverters={inverterStatusData} />
+        )}
+
+        {/* Měsíční výroba */}
+        {inverterIds.length > 0 && (
+          <MonthlyProduction
+            inverters={(inverters ?? []).map((inv) => ({ id: inv.id, label: inv.label }))}
+            data={monthlyRows}
+          />
         )}
 
         {/* Denní grafy */}

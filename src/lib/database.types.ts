@@ -139,7 +139,12 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      get_monthly_production: {
+        Args: { p_inverter_ids: string[] };
+        Returns: { inverter_id: string; month: string; monthly_kwh: number }[];
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
