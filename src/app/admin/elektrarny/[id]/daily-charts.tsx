@@ -65,6 +65,7 @@ export function DailyCharts({ inverters }: Props) {
           time: toHHMM(r.recorded_at),
           soc: r.soc,
           battemper: r.battemper,
+          temperature: r.temperature,
           vdc1: r.vdc1,
           vdc2: r.vdc2,
           vdc3: r.vdc3,
@@ -145,7 +146,29 @@ export function DailyCharts({ inverters }: Props) {
               </ChartCard>
 
               <ChartCard title="Teplota střídače" unit="°C">
-                <EmptyChart />
+                {hasData(inv.readings, "temperature") ? (
+                  <ResponsiveContainer width="100%" height={192}>
+                    <LineChart data={points} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
+                      <XAxis dataKey="time" tick={{ fontSize: 11 }} />
+                      <YAxis unit="°C" tick={{ fontSize: 11 }} width={44} />
+                      <Tooltip
+                        formatter={(v) => [`${v} °C`, "Teplota stř."]}
+                        labelFormatter={(l) => `čas: ${l}`}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="temperature"
+                        stroke="#ef4444"
+                        dot={false}
+                        strokeWidth={2}
+                        name="Teplota stř."
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChart />
+                )}
               </ChartCard>
 
               <ChartCard title="DC napětí MPPT" unit="V">

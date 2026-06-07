@@ -65,7 +65,7 @@ export default async function PlantDetailPage({
     const [{ data: dailyData }, { data: mpptData }, { data: monthlyData }] = await Promise.all([
       supabase
         .from("inverter_readings")
-        .select("inverter_id, recorded_at, soc, battemper, vdc1, vdc2, vdc3, vdc4, idc1, idc2, idc3, idc4, vac1, vac2, vac3, acpower, yieldtoday")
+        .select("inverter_id, recorded_at, soc, battemper, temperature, vdc1, vdc2, vdc3, vdc4, idc1, idc2, idc3, idc4, vac1, vac2, vac3, acpower, yieldtoday")
         .in("inverter_id", inverterIds)
         .gte("recorded_at", startOfDay.toISOString())
         .order("recorded_at")
