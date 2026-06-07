@@ -81,16 +81,35 @@ export const INVERTER_STATUS: Record<string, { cs: string; en: string; severity:
   "133": { cs: "TOU – vybíjení",             en: "TOU Discharging",        severity: "ok"    },
 };
 
+// GoodWe stavy (textové)
+const GOODWE_STATUS: Record<string, { cs: string; severity: "ok" | "warn" | "error" | "info" }> = {
+  "Wait Mode":         { cs: "Čeká na spuštění",    severity: "info"  },
+  "Normal Mode":       { cs: "Normální provoz",      severity: "ok"    },
+  "Online Mode":       { cs: "Online provoz",        severity: "ok"    },
+  "Fault Mode":        { cs: "Porucha",              severity: "error" },
+  "Flash Mode":        { cs: "Aktualizace firmware", severity: "info"  },
+  "Check Mode":        { cs: "Kontrolní režim",      severity: "info"  },
+  "Safety Mode":       { cs: "Bezpečnostní režim",   severity: "warn"  },
+  "Off Grid Mode":     { cs: "Mimo síť (off-grid)",  severity: "warn"  },
+  "Bypass Mode":       { cs: "Bypass režim",         severity: "warn"  },
+  "Export Limit Mode": { cs: "Omezení přetoku",      severity: "info"  },
+};
+
 // Pomocná funkce — vrátí český popis + anglický název pro tooltip
 export function inverterStatusLabel(code: string | null): string {
   if (!code) return "—";
-  const s = INVERTER_STATUS[code];
-  return s ? `${s.cs} (${code})` : `Neznámý stav (${code})`;
+  // Solax numerický kód
+  const solax = INVERTER_STATUS[code];
+  if (solax) return `${solax.cs} (${code})`;
+  // GoodWe textový stav
+  const goodwe = GOODWE_STATUS[code];
+  if (goodwe) return goodwe.cs;
+  return code; // Zobraz tak jak je
 }
 
 export function inverterStatusSeverity(code: string | null): "ok" | "warn" | "error" | "info" {
   if (!code) return "info";
-  return INVERTER_STATUS[code]?.severity ?? "info";
+  return INVERTER_STATUS[code]?.severity ?? GOODWE_STATUS[code]?.severity ?? "info";
 }
 
 // Mapování typu invertoru (inverterType)
