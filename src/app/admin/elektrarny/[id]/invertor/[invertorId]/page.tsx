@@ -17,6 +17,7 @@ type LastReading = {
   recorded_at: string;
   soc: number | null;
   battemper: number | null;
+  temperature: number | null;
   acpower: number | null;
   yieldtoday: number | null;
   inverter_status: string | null;
@@ -115,7 +116,7 @@ export default async function InverterDetailPage({
       supabase
         .from("inverter_readings")
         .select(
-          "id, inverter_id, recorded_at, soc, battemper, acpower, yieldtoday, inverter_status, vdc1, vdc2, vdc3, vdc4, idc1, idc2, idc3, idc4, vac1, vac2, vac3",
+          "id, inverter_id, recorded_at, soc, battemper, temperature, acpower, yieldtoday, inverter_status, vdc1, vdc2, vdc3, vdc4, idc1, idc2, idc3, idc4, vac1, vac2, vac3",
         )
         .eq("inverter_id", invertorId)
         .order("recorded_at", { ascending: false })
@@ -335,7 +336,7 @@ export default async function InverterDetailPage({
                 <StatCard label="AC výkon" value={last.acpower} unit="W" />
                 <StatCard label="SOC baterie" value={last.soc} unit="%" />
                 <StatCard label="Teplota baterie" value={last.battemper} unit="°C" />
-                <StatCard label="Teplota střídače" value={null} unit="°C" />
+                <StatCard label="Teplota střídače" value={last.temperature} unit="°C" />
               </div>
 
               {statusLabel && (

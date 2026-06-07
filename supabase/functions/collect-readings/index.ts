@@ -43,6 +43,7 @@ function mapSolaxReading(r: AnyObj, inverterId: string) {
     powerdc3: r.powerdc3 ?? null, powerdc4: r.powerdc4 ?? null,
     batpower: r.batPower ?? null,
     ratedpower: r.ratedPower ?? null,
+    temperature: r.temperature ?? null,
   };
 }
 
@@ -150,6 +151,7 @@ function mapGoodWeInverter(inv: AnyObj, inverterId: string): AnyObj {
     powerdc4: pdc(d.vpv4, d.ipv4),
     batpower,
     ratedpower: n(d.capacity ? parseFloat(d.capacity) * 1000 : null),
+    temperature: n(inv.tempperature ?? null), // GoodWe: překlep v API (tempperature)
   };
 }
 

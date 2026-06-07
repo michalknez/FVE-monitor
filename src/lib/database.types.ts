@@ -180,4 +180,5 @@ export type InverterReading = {
   powerdc4: number | null;
   batpower: number | null;
   ratedpower: number | null;
+  temperature: number | null;
 };
